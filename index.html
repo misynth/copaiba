@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>COPAIBA- Editor de oto.ini</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .card{border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .card-header{display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;border-bottom:1px solid #e5e7eb;border-top-left-radius:16px;border-top-right-radius:16px}
+    .float-btn{font-size:12px;line-height:1;border:1px solid #e5e7eb;background:transparent;border-radius:10px;padding:.25rem .4rem;cursor:pointer}
+    .float-btn:hover{background:rgba(0,0,0,.04)}
+    .floatable.floating{position:fixed;inset:auto auto auto auto;width:560px;max-width:90vw;z-index:9999;box-shadow:0 12px 24px rgba(0,0,0,.18)}
+    .floating .card-body{max-height:70vh;overflow:auto}
+    .floating .drag-handle{cursor:move}
+    .dragging{user-select:none}
+    canvas{display:block;width:100%}
+    #wave{height:260px}
+    #mini{height:60px}
+    .tag{font-size:10px;padding:.1rem .4rem;border-radius:.5rem;border:1px solid #e5e7eb;background:#f8fafc}
+    .marker-label{position:absolute;transform:translate(-50%,-100%);background:#111827;color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;white-space:nowrap;pointer-events:auto;cursor:pointer}
+    .handle{position:absolute;width:8px;height:100%;transform:translateX(-50%);cursor:ew-resize;background:transparent}
+    .marker-selected{outline:2px solid #111827}
+    textarea{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .drop-hint{border:2px dashed #cbd5e1;border-radius:12px;padding:.5rem .75rem}
+    .drop-active{background:#f0f9ff;border-color:#38bdf8;color:#0ea5e9}
+    .floating{resize:both;overflow:hidden}
+    #labels{position:absolute;inset:0;pointer-events:none}
+    #labels .handle, #labels .marker-label{pointer-events:auto}
+  
+:root{
+  --bg:#ffffff; --text:#111827; --muted:#6b7280; --card:#ffffff; --accent:#2563eb;
+  --grid:#e5e7eb; --label-bg:#f9fafb;
+}
+body.theme-dark{ --bg:#0b0f15; --text:#e5e7eb; --muted:#9ca3af; --card:#0f1621; --accent:#60a5fa; --grid:#1f2937; --label-bg:#111827; }
+body.theme-emerald{ --bg:#071913; --text:#eafcf5; --muted:#a7d8c7; --card:#0b221b; --accent:#10b981; --grid:#133026; --label-bg:#0e2a21; }
+body.theme-violet{ --bg:#0f0b17; --text:#eee9ff; --muted:#b8aef2; --card:#140f21; --accent:#8b5cf6; --grid:#211a33; --label-bg:#18122a; }
+body.theme-pastel{ --bg:#fff7fb; --text:#312e2e; --muted:#7b6f72; --card:#fff9ff; --accent:#ff7aa2; --grid:#ffe8f1; --label-bg:#fff0f6; }
+body.theme-cyan{ --bg:#07161a; --text:#e6fbff; --muted:#a0d9e5; --card:#0b2026; --accent:#06b6d4; --grid:#14333b; --label-bg:#0e2930; }
+body.theme-amber{ --bg:#1a1307; --text:#fff4e6; --muted:#f1c27d; --card:#23190a; --accent:#f59e0b; --grid:#3a2a11; --label-bg:#2a1f0d; }
+body.theme-graphite{ --bg:#0d0d0f; --text:#ececec; --muted:#9a9aa0; --card:#121214; --accent:#9ca3af; --grid:#1c1c20; --label-bg:#151517; }
+
+body{ background:var(--bg); color:var(--text); }
+.card{ background:var(--card); }
+.text-muted{ color:var(--muted); }
+.accent{ color:var(--accent); }
+.border-accent{ border-color:var(--accent); }
+#labels .marker-label{ background:var(--label-bg); color:var(--text); border-color:var(--accent); }
+.handle{ background: linear-gradient(to bottom, transparent, var(--accent) 40%, var(--accent) 60%, transparent); opacity:.25; }
+</style>
+</head>
+<body class="bg-white text-gray-900">
+  <header class="sticky top-0 z-10 backdrop-blur bg-white/80 border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+      <h1 class="text-2xl font-semibold">COPAIBA- Editor de oto.ini</h1>
+      <div class="flex items-center gap-2 ml-auto">
+        <input id="pickFolder" type="file" webkitdirectory directory multiple accept="audio/wav" class="hidden" />
+        <input id="pickOto" type="file" accept=".ini,.txt" class="hidden" />
+        <select id="otoEncoding" class="px-2 py-1 rounded-lg border bg-transparent text-sm"><option value="utf-8">UTF-8</option><option value="utf-16le">Unicode</option><option value="windows-1252">ANSI</option></select>
+        <button id="btnFolder" class="px-3 py-1.5 rounded-xl border bg-transparent hover:bg-black/5">Abrir pasta .wav</button>
+        <button id="btnOto" class="px-3 py-1.5 rounded-xl border bg-transparent hover:bg-black/5">Carregar oto.ini</button>
+        <button id="btnSave" class="px-3 py-1.5 rounded-xl border bg-transparent hover:bg-black/5 disabled:opacity-50" disabled>Exportar oto.ini</button>
+        <button id="btnDupLine" class="px-3 py-1.5 rounded-xl border bg-transparent hover:bg-black/5">Duplicar linha</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div class="grid grid-cols-12 gap-4">
+
+      <!-- ESQUERDA: Arquivos -->
+      <aside class="col-span-12 md:col-span-4">
+        <div id="pane-files" class="card floatable bg-white" data-float-key="files">
+          <div class="card-header drag-handle bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="text-sm">Arquivos e aliases da oto.ini</span>
+              <span id="countAliases" class="tag">0</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="filter" placeholder="Filtrar…" class="w-40 px-2 py-1 rounded-lg border bg-transparent text-sm" />
+              <button class="float-btn" data-float-toggle>🗖</button>
+            </div>
+          </div>
+          <div class="card-body p-3">
+            <div id="aliasList" class="max-h-[60vh] overflow-auto divide-y"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- DIREITA: Waveform + Mini -->
+      <section class="col-span-12 md:col-span-8 space-y-3">
+        <div id="pane-wave" class="card floatable bg-white" data-float-key="wave">
+          <div class="card-header drag-handle bg-gray-50">
+            <div class="text-sm">
+              <span id="currentName" class="font-medium">(nenhum arquivo)</span>
+              <span id="srInfo" class="ml-2 text-gray-500"></span>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-gray-600">
+              <div class="hidden sm:flex items-center gap-2">
+                <button id="btnPlay" class="px-2 py-1 rounded-lg border bg-transparent">▶️ Tocar/Pausar</button>
+                <button id="btnStop" class="px-2 py-1 rounded-xl border bg-transparent">⏹️</button>
+              </div>
+              <div class="flex items-center gap-2">
+                <input id="zoom" type="range" min="1" max="128" step="1" value="1" />
+                <span id="zoomLabel">1×</span>
+                <span>Zoom</span>
+              </div>
+              <button class="float-btn" data-float-toggle>🗖</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="relative">
+              <canvas id="wave" height="260"></canvas>
+              <div id="labels"></div>
+            </div>
+            <div class="border-t border-gray-200 px-3 py-2">
+              <canvas id="mini" height="60"></canvas>
+            </div>
+            <div class="px-3 pb-2 text-xs text-gray-600">
+              Q/W/E/R/T = marcar • Y = tocar/pausar • 0 = duplicar • 9 = renomear • ↑/↓ = navegar • Roda do mouse = zoom (ancorado) • Shift + Roda = rolagem horizontal
+            </div>
+          </div>
+        </div>
+
+        <!-- Parâmetros -->
+        <div id="pane-params" class="card floatable bg-white" data-float-key="params">
+          <div class="card-header drag-handle bg-gray-50">
+            <span class="text-sm">Configurações dos parâmetros</span>
+            <button class="float-btn" data-float-toggle>🗖</button>
+          </div>
+          <div class="card-body p-3">
+            <div class="grid grid-cols-12 gap-3 items-end">
+              <div class="col-span-6 md:col-span-2">
+                <label class="text-xs text-gray-600">Alias/Fonema/Legenda</label>
+                <input id="alias" class="w-full px-2 py-2 rounded-lg border bg-transparent" placeholder="alias" />
+              </div>
+              <!-- Reordered parameter inputs: Q (offset), W (overlap), E (preutter), R (consonant), T (cutoff) -->
+              <div class="col-span-6 md:col-span-2">
+                <label class="text-xs text-gray-600">Corte inicial (Q)</label>
+                <input id="offset" type="number" class="w-full px-2 py-2 rounded-lg border bg-transparent" step="1" />
+              </div>
+              <div class="col-span-6 md:col-span-2">
+                <label class="text-xs text-gray-600">Transição (W)</label>
+                <input id="overlap" type="number" class="w-full px-2 py-2 rounded-lg border bg-transparent" step="1" />
+              </div>
+              <div class="col-span-6 md:col-span-2">
+                <label class="text-xs text-gray-600">Início da vogal (E)</label>
+                <input id="preutter" type="number" class="w-full px-2 py-2 rounded-lg border bg-transparent" step="1" />
+              </div>
+              <div class="col-span-6 md:col-span-2">
+                <label class="text-xs text-gray-600">Parte de loop (R)</label>
+                <input id="consonant" type="number" class="w-full px-2 py-2 rounded-lg border bg-transparent" step="1" />
+              </div>
+              <div class="col-span-6 md:col-span-2">
+                <label class="text-xs text-gray-600">Corte final (T)</label>
+                <input id="cutoff" type="number" class="w-full px-2 py-2 rounded-lg border bg-transparent" step="1" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- oto.ini (EDITÁVEL) -->
+        <div id="pane-oto" class="card floatable bg-white" data-float-key="oto">
+          <div class="card-header drag-handle bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="text-sm">oto.ini (editável)</span>
+              <span id="countLines" class="tag">0</span>
+            </div>
+            <button class="float-btn" data-float-toggle>🗖</button>
+          </div>
+          <div class="card-body p-3">
+            <textarea id="otoView" class="w-full h-60 p-2 rounded-lg border bg-transparent text-xs leading-5" spellcheck="false"></textarea>
+          </div>
+        </div>
+      
+        <!-- Log -->
+        <div id="pane-log" class="card floatable bg-white" data-float-key="log" style="max-height:280px">
+          <div class="card-header drag-handle bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="text-sm">Log de ações</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btnUndo" class="px-2 py-1 rounded-lg border bg-transparent">↶ Desfazer</button>
+              <button id="btnRedo" class="px-2 py-1 rounded-lg border bg-transparent">↷ Refazer</button>
+              <button class="float-btn" data-float-toggle>🗖</button>
+            </div>
+          </div>
+          <div class="card-body p-2">
+            <div id="logList" class="space-y-1 max-h-48 overflow-auto"></div>
+          </div>
+        </div>
+</section>
+    </div>
+  </main>
+
+  <script>
+  // ===== Util =====
+  const round0=(x)=> Math.round(Number(x||0));
+  const fmt = (ms)=> String(round0(ms));
+  const $ = id => document.getElementById(id);
+  const qs = (sel,root=document)=> root.querySelector(sel);
+  const qsa = (sel,root=document)=> [...root.querySelectorAll(sel)];
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+  const basename = (p)=> (p||'').split(/[\\/]/).pop();
+  const lower = (s)=> String(s||'').toLowerCase();
+  // ===== Log & Undo/Redo =====
+  const logList = document.getElementById('logList');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
+  let undoStack = [], redoStack = [];
+
+  function logMsg(msg){
+    if(!logList) return;
+    const line = document.createElement('div');
+    line.className = 'text-xs font-mono leading-5';
+    const ts = new Date().toLocaleTimeString();
+    line.textContent = `[${ts}] ${msg}`;
+    logList.appendChild(line);
+    logList.scrollTop = logList.scrollHeight;
+  }
+  function updateUndoRedoButtons(){
+    if(btnUndo) btnUndo.disabled = undoStack.length===0;
+    if(btnRedo) btnRedo.disabled = redoStack.length===0;
+  }
+  function pushAction(action, desc){
+    undoStack.push(action);
+    redoStack = [];
+    logMsg(desc);
+    updateUndoRedoButtons();
+  }
+  function pushPatch(index, before, after, desc){
+    if(JSON.stringify(before)===JSON.stringify(after)) return;
+    pushAction({type:'patch', index, before, after}, desc);
+  }
+  function applyAction(action, dir){
+    if(action.type==='patch'){
+      const idx = action.index;
+      if(!rows[idx]) return;
+      rows[idx] = {...(dir==='undo' ? action.before : action.after)};
+      if(selectedRowIndex===idx){ loadParamsToUI(); }
+      refreshOtoView(); renderAliasList(); logMsg && logMsg('oto.ini carregado'); drawComposition();
+    } else if(action.type==='insert'){
+      if(dir==='undo'){ rows.splice(action.index,1); }
+      else            { rows.splice(action.index,0,{...action.row}); }
+      selectedRowIndex = Math.min(action.index, rows.length-1);
+      renderAliasList(); refreshOtoView(); if(rows.length) selectRow(selectedRowIndex);
+    } else if(action.type==='remove'){
+      if(dir==='undo'){ rows.splice(action.index,0,{...action.row}); selectedRowIndex = action.index; renderAliasList(); refreshOtoView(); selectRow(selectedRowIndex); }
+      else            { rows.splice(action.index,1); selectedRowIndex = Math.min(action.index, rows.length-1); renderAliasList(); refreshOtoView(); if(rows.length) selectRow(selectedRowIndex); }
+    }
+  }
+  if(btnUndo) btnUndo.addEventListener('click', ()=>{ const a=undoStack.pop(); if(!a) return; redoStack.push(a); applyAction(a,'undo'); logMsg('Undo'); updateUndoRedoButtons(); });
+  if(btnRedo) btnRedo.addEventListener('click', ()=>{ const a=redoStack.pop(); if(!a) return; undoStack.push(a); applyAction(a,'redo'); logMsg('Redo'); updateUndoRedoButtons(); });
+
+  // ===== Float panes =====
+  const FLOAT_KEY_PREFIX = 'flt:';
+  function initFloatables(){
+    qsa('.floatable').forEach(pane=>{
+      const btn = qs('[data-float-toggle]', pane);
+      const header = qs('.card-header', pane);
+      if(!btn || !header) return;
+
+      const key = pane.dataset.floatKey || '';
+      const saved = key ? JSON.parse(localStorage.getItem(FLOAT_KEY_PREFIX+key)||'null') : null;
+      if(saved?.floating){ makeFloating(pane, saved); }
+
+      btn.addEventListener('click', ()=>{
+        if(pane.classList.contains('floating')) dockPane(pane);
+        else makeFloating(pane);
+      });
+
+      let dragging=false, startX=0,startY=0, startLeft=0,startTop=0;
+      header.addEventListener('mousedown', (e)=>{
+        if(!pane.classList.contains('floating')) return;
+        dragging = true; document.body.classList.add('dragging');
+        startX = e.clientX; startY = e.clientY;
+        const rect = pane.getBoundingClientRect();
+        startLeft = rect.left; startTop = rect.top;
+        e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e)=>{
+        if(!dragging) return;
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        positionPane(pane, startLeft + dx, startTop + dy);
+      });
+      window.addEventListener('mouseup', ()=>{
+        if(!dragging) return;
+        dragging=false; document.body.classList.remove('dragging');
+        savePaneState(pane);
+      });
+
+      pane.addEventListener('mousedown', ()=>{ if(pane.classList.contains('floating')) bringToFront(pane); });
+    });
+  }
+  function makeFloating(pane, saved=null){
+    pane.classList.add('floating');
+    pane.style.left = (saved?.left ?? 60) + 'px';
+    pane.style.top  = (saved?.top  ?? 80) + 'px';
+    pane.style.width = (saved?.width ?? 560) + 'px';
+    pane.style.height = (saved?.height ?? pane.getBoundingClientRect().height) + 'px';
+    const btn = qs('[data-float-toggle]', pane); if(btn) btn.textContent='🗗';
+    bringToFront(pane);
+    savePaneState(pane, {floating:true});
+  }
+  function dockPane(pane){
+    pane.classList.remove('floating');
+    pane.style.left=''; pane.style.top=''; pane.style.width=''; pane.style.height='';
+    const btn = qs('[data-float-toggle]', pane); if(btn) btn.textContent='🗖';
+    savePaneState(pane, {floating:false});
+  }
+  function bringToFront(pane){
+    const maxZ = Math.max(9999, ...qsa('.floating').map(p=> parseInt(getComputedStyle(p).zIndex||'9999',10)));
+    pane.style.zIndex = (maxZ+1).toString();
+  }
+  function positionPane(pane,left,top){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const rect = pane.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    pane.style.left = clamp(left, 0, Math.max(0, vw - w))+'px';
+    pane.style.top  = clamp(top,  0, Math.max(0, vh - h))+'px';
+  }
+  function savePaneState(pane, patch={}){
+    const key = pane.dataset.floatKey || '';
+    if(!key) return;
+    const rect = pane.getBoundingClientRect();
+    const prev = JSON.parse(localStorage.getItem(FLOAT_KEY_PREFIX+key)||'{}');
+    const data = {
+      floating: pane.classList.contains('floating'),
+      left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+      ...patch
+    };
+    localStorage.setItem(FLOAT_KEY_PREFIX+key, JSON.stringify({...prev, ...data}));
+  }
+
+  // ===== OTO parsing (ms inteiros, cutoff pode ser negativo) =====
+  function parseOto(text){
+    const norm = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = norm.split('\n');
+    const out = [];
+    for(const raw of lines){
+      if(!raw.trim()) continue;
+      const idx = raw.indexOf('=');
+      if(idx<0) continue;
+      const filename = raw.slice(0,idx).trim();
+      const parts = raw.slice(idx+1).split(',');
+      const toNum = (i)=> round0(parts[i]||0);
+      out.push({
+        filename,
+        alias:(parts[0]||'').trim(),
+        offset:     toNum(1),
+        consonant:  toNum(2),
+        // cutoff positive values in oto.ini traditionally mean "ms from the end". This editor always counts
+        // cutoff as a distance to the right from the offset and stores it as a negative number. To ensure
+        // imported values follow that convention, convert any parsed cutoff to a negative distance from
+        // the offset.
+        cutoff:     (function(){ const c = round0(parts[3]||0); return -Math.abs(c); })(),
+        preutter:   toNum(4),
+        overlap:    toNum(5)
+      });
+    }
+    return out;
+  }
+  function serializeOto(rows){
+    return rows.map(p=> `${p.filename}=${[
+      p.alias||'',
+      round0(p.offset),
+      round0(p.consonant),
+      round0(p.cutoff),
+      round0(p.preutter),
+      round0(p.overlap)
+    ].join(',')}`).join('\n');
+  }
+  function inferAlias(filename){ return basename(filename).replace(/\.[^.]+$/,''); }
+
+  // ===== Estado =====
+  let audioCtx; let currentBuffer=null; let source=null;
+  let files=[]; let rows=[];
+  let selectedRowIndex = -1;
+  let zoom = 1;
+  let viewStartMs = 0;
+  let cursorMs = 0;
+  let selectedMarkerId = null; let lastMouseX=null;
+
+  // Cores
+  const COLORS = {
+    overlap:   '#22c55e',
+    preutter:  '#ef4444',
+    consonant: '#ec4899',
+    offset:    '#1e3a8a',
+    cutoff:    '#60a5fa'
+  };
+
+  // redefine marker order and labels to match updated shortcut mapping
+  // Q: Corte inicial (offset), W: Transição (overlap), E: Início da vogal (preutter),
+  // R: Parte de loop (consonant), T: Corte final (cutoff)
+  const markers = [
+    {key:'Q', id:'offset',    color:COLORS.offset,    label:'Corte inicial'},
+    {key:'W', id:'overlap',   color:COLORS.overlap,   label:'Transição'},
+    {key:'E', id:'preutter',  color:COLORS.preutter,  label:'Início da vogal'},
+    {key:'R', id:'consonant', color:COLORS.consonant, label:'Parte de loop'},
+    {key:'T', id:'cutoff',    color:COLORS.cutoff,    label:'Corte final'},
+  ];
+
+  // ===== DOM =====
+  const wave = $('wave'), ctxWave = wave.getContext('2d');
+  const mini = $('mini'), mctx = mini.getContext('2d');
+  const labelsWrap = $('labels');
+  const aliasList = $('aliasList');
+  const countAliases = $('countAliases'); const countLines = $('countLines');
+  const currentName = $('currentName'); const srInfo = $('srInfo');
+  const aliasIn = $('alias'); const offsetIn = $('offset'); const consonantIn = $('consonant');
+  const cutoffIn = $('cutoff'); const preutterIn = $('preutter'); const overlapIn = $('overlap');
+  const pickFolder = $('pickFolder'); const pickOto = $('pickOto');
+  const otoView = $('otoView');
+  const zoomSlider = $('zoom'); const zoomLabel = $('zoomLabel');
+  const btnFolder = $('btnFolder');
+
+  // ===== Abrir pasta/arquivos =====
+  const supportsDir = 'webkitdirectory' in pickFolder;
+  let pickFiles = document.createElement('input'); pickFiles.type='file'; pickFiles.multiple=true; pickFiles.accept='audio/wav'; pickFiles.style.display='none'; document.body.appendChild(pickFiles);
+  if(!supportsDir){ btnFolder.textContent='Abrir arquivos .wav'; }
+  btnFolder.addEventListener('click', ()=>{ if(supportsDir) pickFolder.click(); else pickFiles.click(); });
+
+  async function ingestFileList(fileListLike){
+    const arr = [...fileListLike];
+    const wavs = arr.filter(f=>/\.wav$/i.test(f.name));
+    if(!wavs.length){ alert('Nenhum .wav encontrado.'); return; }
+    files = wavs.map(f=>({name:f.webkitRelativePath||f.name, file:f, url:URL.createObjectURL(f)}));
+    for(const f of files){
+      if(!rows.find(r=> sameFile(r.filename, f.name))){
+        rows.push({ filename:f.name, alias:inferAlias(f.name), offset:0, consonant:0, cutoff:0, preutter:0, overlap:0 });
+      }
+    }
+    renderAliasList();
+    if(rows.length && selectedRowIndex<0){ selectRow(0); }
+    $('btnSave').disabled = rows.length===0;
+  }
+  pickFolder.addEventListener('change', (e)=> ingestFileList(e.target.files));
+  pickFiles.addEventListener('change', (e)=> ingestFileList(e.target.files));
+
+  // Drag & Drop
+  const leftPane = $('pane-files');
+  ;['dragenter','dragover'].forEach(evt=>{
+    leftPane.addEventListener(evt, ev=>{ ev.preventDefault(); ev.stopPropagation(); leftPane.classList.add('drop-active'); });
+  });
+  ;['dragleave','drop'].forEach(evt=>{
+    leftPane.addEventListener(evt, ev=>{ ev.preventDefault(); ev.stopPropagation(); leftPane.classList.remove('drop-active'); });
+  });
+  leftPane.addEventListener('drop', async (ev)=>{
+    const items = ev.dataTransfer?.items; const filesList = ev.dataTransfer?.files;
+    if(items && items[0] && 'webkitGetAsEntry' in items[0]){
+      const all = await getAllFilesFromDataTransferItems(items);
+      await ingestFileList(all);
+    } else if(filesList){
+      await ingestFileList(filesList);
+    }
+  });
+
+  async function getAllFilesFromDataTransferItems(dataTransferItemList){
+    const filePromises=[];
+    for(const item of dataTransferItemList){
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if(entry){ filePromises.push(...await traverseFileTree(entry)); }
+      else if(item.getAsFile){ const f = item.getAsFile(); if(f) filePromises.push(Promise.resolve(f)); }
+    }
+    return Promise.all(filePromises);
+  }
+  async function traverseFileTree(entry, path=''){
+    if(entry.isFile){
+      return [new Promise(resolve=> entry.file(f=>{ f.webkitRelativePath = (path?path+'/':'') + f.name; resolve(f); }))];
+    }
+    if(entry.isDirectory){
+      const reader = entry.createReader();
+      return [new Promise(resolve=>{
+        reader.readEntries(async entries=>{
+          const promises=[];
+          for(const ent of entries){ promises.push(...await traverseFileTree(ent, (path?path+'/':'')+entry.name)); }
+          resolve(Promise.all(promises));
+        });
+      })].flat();
+    }
+    return [];
+  }
+
+  // ===== Comparação por basename =====
+  function sameFile(a,b){
+    if(!a || !b) return false;
+    if(a===b) return true;
+    const ba = lower(basename(a)), bb = lower(basename(b));
+    return ba === bb || lower(a).endsWith('/'+bb) || lower(a).endsWith('\\'+bb);
+  }
+  function getFileIndexForFilename(fn){
+    let idx = files.findIndex(f=> f.name === fn);
+    if(idx>=0) return idx;
+    const bFn = lower(basename(fn));
+    idx = files.findIndex(f=> lower(basename(f.name)) === bFn);
+    return idx;
+  }
+
+  // ===== Carregar oto.ini =====
+  $('btnOto').addEventListener('click', ()=> pickOto.click());
+  pickOto.addEventListener('change', (e)=>{
+    const f = e.target.files[0]; if(!f) return; const r = new FileReader();
+    r.onload = ()=>{
+      rows = parseOto(String(r.result));
+      if(files.length){
+        for(const f of files){
+          if(!rows.find(r=> sameFile(r.filename, f.name))){
+            rows.push({ filename:f.name, alias:inferAlias(f.name), offset:0, consonant:0, cutoff:0, preutter:0, overlap:0 });
+          }
+        }
+      }
+      if(rows.length){ selectedRowIndex = Math.max(0, selectedRowIndex); selectRow(selectedRowIndex); }
+      refreshOtoView(); renderAliasList();
+    };
+    var enc = (document.getElementById('otoEncoding')||{}).value || 'utf-8'; r.readAsText(f, enc);
+  });
+
+  // ===== Exportar oto.ini =====
+  $('btnSave').addEventListener('click', ()=>{
+    const content = serializeOto(rows);
+    const blob = new Blob([content],{type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='oto.ini'; a.click(); logMsg && logMsg('oto.ini exportado');
+  });
+
+  // ===== Duplicar linha (botão) =====
+  $('btnDupLine').addEventListener('click', ()=>{
+    const p = getCurrentRow(); if(!p){ alert('Selecione um alias primeiro.'); return; }
+    const copy = {...p};
+    rows.splice(selectedRowIndex+1, 0, copy); pushAction({type:'insert', index:selectedRowIndex+1, row:{...copy}}, 'Duplicar linha');
+    selectedRowIndex = selectedRowIndex + 1;
+    renderAliasList(); refreshOtoView();
+    selectRow(selectedRowIndex);
+  });
+
+  // ===== Lista de ALIASES =====
+  function renderAliasList(){
+    countAliases.textContent = String(rows.length);
+    aliasList.innerHTML='';
+    const q = lower(($('filter').value)||'');
+
+    rows.forEach((r, idx)=>{
+      const hit = lower(r.alias).includes(q) || lower(r.filename).includes(q);
+      if(!hit) return;
+
+      const hasFile = getFileIndexForFilename(r.filename) >= 0;
+      const div = document.createElement('div');
+      div.className = 'flex items-center gap-2 px-2 py-2 text-sm hover:bg-black/5 cursor-pointer' + (idx===selectedRowIndex?' bg-black/5':'');
+      const fileTag = `<span class="tag" title="arquivo ${hasFile ? '' : 'não encontrado'}">${basename(r.filename)}</span>`;
+      div.innerHTML = `<div class="font-mono text-xs truncate" title="${r.alias||'(sem alias)'}">${r.alias||'(sem alias)'}</div>
+                       <div class="ml-auto flex items-center gap-2">${fileTag}${hasFile?'':'<span class="tag" title=".wav ausente">! wav</span>'}</div>`;
+      div.addEventListener('click', ()=> selectRow(idx));
+      aliasList.appendChild(div);
+    });
+    $('btnSave').disabled = rows.length===0;
+  }
+  $('filter').addEventListener('input', renderAliasList);
+
+  function getCurrentRow(){ return selectedRowIndex>=0 ? rows[selectedRowIndex] : null; }
+
+  // ===== Decode =====
+  async function selectRow(rowIndex){
+    selectedRowIndex = clamp(rowIndex, 0, rows.length-1);
+    const r = rows[selectedRowIndex]; if(!r) return;
+    loadParamsToUI();
+    const fIdx = getFileIndexForFilename(r.filename);
+    currentName.textContent = r.filename || '(sem arquivo)';
+    if(fIdx >= 0){
+      await decodeAndDraw(files[fIdx]);
+      const dur = currentBuffer.duration*1000;
+      const vw = getViewWindowMs(dur);
+      viewStartMs = clamp((r.offset||0) - vw/2, 0, Math.max(0, dur - vw));
+    } else { srInfo.textContent=''; currentBuffer=null; drawComposition(); }
+    renderAliasList();
+  }
+
+  async function decodeAndDraw(item){
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const arrbuf = await fetch(item.url).then(r=>r.arrayBuffer());
+    currentBuffer = await audioCtx.decodeAudioData(arrbuf);
+    srInfo.textContent = `• ${currentBuffer.sampleRate} Hz • ${(currentBuffer.duration).toFixed(2)} s`;
+    resizeCanvas();
+    drawComposition();
+  }
+
+  // ===== Conversões tempo <-> x =====
+  function getViewWindowMs(totalMs){ if(!totalMs) return 0; return Math.max(1, totalMs/Math.max(1, zoom)); }
+  function msToX(ms){
+    if(!currentBuffer) return 0;
+    const totalMs = currentBuffer.duration*1000;
+    const vw = getViewWindowMs(totalMs);
+    return ((ms - viewStartMs)/vw) * wave.width;
+  }
+  function xToMs(x){
+    if(!currentBuffer) return 0;
+    const totalMs = currentBuffer.duration*1000;
+    const vw = getViewWindowMs(totalMs);
+    return viewStartMs + (x/wave.width)*vw;
+  }
+
+  // ===== Fills (offset / consonant / cutoff) =====
+  function fillRectClamped(ctx, x1, x2, color, alpha){
+    const W = ctx.canvas.width;
+    const a = Math.max(0, Math.min(W, Math.min(x1,x2)));
+    const b = Math.max(0, Math.min(W, Math.max(x1,x2)));
+    if(b <= a) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fillRect(a, 0, b - a, ctx.canvas.height);
+    ctx.restore();
+  }
+  function drawParamFills(){
+    if(!currentBuffer || selectedRowIndex<0) return;
+    const p = rows[selectedRowIndex];
+    const totalMs = currentBuffer.duration*1000;
+
+    const off = clamp(round0(p.offset||0), 0, totalMs);
+    const consDur = clamp(round0(p.consonant||0), 0, Math.max(0,totalMs - off));
+    const c = round0(p.cutoff||0);
+
+    const consStart = off;
+    const consEnd   = clamp(off + consDur, 0, totalMs);
+
+    // cutoff absoluto: distancia relativa ao offset (sempre positivar)
+    // cutoff is stored negative; absolute position = offset + |c|, clamped to totalMs
+    const cutAbs = clamp(off + Math.abs(c), 0, totalMs);
+
+    // fills
+    fillRectClamped(ctxWave, msToX(0),        msToX(off),    COLORS.offset, 0.12);
+    fillRectClamped(ctxWave, msToX(consStart),msToX(consEnd),COLORS.consonant, 0.12);
+    fillRectClamped(ctxWave, msToX(cutAbs),   msToX(totalMs),COLORS.cutoff, 0.12);
+  }
+
+  // ===== Desenho da waveform e marcadores =====
+  function drawWave(){
+    const W = wave.width, H = wave.height, c = ctxWave;
+    c.clearRect(0,0,W,H);
+    c.fillStyle = '#ffffff';
+    c.fillRect(0,0,W,H);
+    c.strokeStyle = '#e5e7eb';
+    c.beginPath(); c.moveTo(0,H/2); c.lineTo(W,H/2); c.stroke();
+
+    if(currentBuffer){
+      const ch = currentBuffer.getChannelData(0);
+      const totalMs = currentBuffer.duration*1000;
+      const totalSamples = ch.length;
+      const vw = getViewWindowMs(totalMs);
+      const startMs = viewStartMs, endMs = startMs + vw;
+
+      const startSamp = Math.floor((startMs/totalMs)*totalSamples);
+      const endSamp   = Math.min(totalSamples, Math.ceil((endMs/totalMs)*totalSamples));
+      const samplesInView = Math.max(1, endSamp - startSamp);
+      const step = Math.max(1, Math.floor(samplesInView / W));
+
+      c.strokeStyle = '#111827';
+      c.beginPath();
+      let x=0;
+      for(let i=startSamp;i<endSamp;i+=step){
+        let min=1e9, max=-1e9;
+        for(let j=0;j<step && i+j<endSamp;j++){ const v=ch[i+j]; if(v<min)min=v; if(v>max)max=v; }
+        const mid = H/2, scale = H*0.45;
+        c.moveTo(x, mid + min*scale); c.lineTo(x, mid + max*scale);
+        x+=1;
+      }
+      c.stroke();
+    }
+
+    const cx = msToX(cursorMs);
+    c.strokeStyle = '#ef4444'; c.beginPath(); c.moveTo(cx,0); c.lineTo(cx,H); c.stroke();
+  }
+
+  function markerAbs(p, id){
+    const totalMs = currentBuffer ? Math.round(currentBuffer.duration*1000) : 0;
+    if(id==='offset') return p.offset||0;
+    if(id==='consonant') return (p.offset||0) + (p.consonant||0);
+    if(id==='preutter') return (p.offset||0) + (p.preutter||0);
+    if(id==='overlap') return (p.offset||0) + (p.overlap||0);
+    if(id==='cutoff'){
+      // cutoff is stored as a negative value representing the distance from offset
+      // the absolute position is offset + abs(cutoff)
+      const c = Math.round(p.cutoff||0);
+      const absPos = (p.offset||0) + Math.abs(c);
+      return clamp(absPos, 0, totalMs);
+    }
+    return 0;
+  }
+
+  function drawMarkerLines(){
+    if(selectedRowIndex<0) return;
+    const p = rows[selectedRowIndex];
+    const W1 = wave.width, H1 = wave.height;
+    ctxWave.save(); ctxWave.lineWidth = 1;
+    markers.forEach(m=>{
+      const x = msToX(markerAbs(p, m.id));
+      if(x<0 || x>W1) return;
+      ctxWave.strokeStyle = (m.id==='offset')? COLORS.offset
+                         : (m.id==='consonant')? COLORS.consonant
+                         : (m.id==='cutoff')? COLORS.cutoff
+                         : (m.id==='preutter')? COLORS.preutter
+                         : COLORS.overlap;
+      ctxWave.beginPath(); ctxWave.moveTo(x+0.5,0); ctxWave.lineTo(x+0.5,H1); ctxWave.stroke();
+    });
+    ctxWave.restore();
+  }
+
+  function drawMarkers(){
+    labelsWrap.innerHTML=''; if(selectedRowIndex<0) return;
+    const overlayH = wave.getBoundingClientRect().height;
+    const p = rows[selectedRowIndex];
+
+    markers.forEach(m=>{
+      // compute absolute ms position for this marker
+      const msAbs = markerAbs(p, m.id);
+      const x = msToX(msAbs);
+      // only draw marker handles and labels if within visible waveform
+      if(x < 0 || x > wave.width) return;
+      const h = document.createElement('div');
+      h.className='handle';
+      h.style.left = x+'px';
+      h.style.top='0px';
+      h.style.height=overlayH+'px';
+      h.dataset.mid = m.id;
+      labelsWrap.appendChild(h);
+      const lab = document.createElement('div');
+      lab.className = 'marker-label' + (selectedMarkerId===m.id ? ' marker-selected' : '');
+      lab.style.left = x+'px';
+      lab.style.top = '14px';
+      // show raw parameter value for label (e.g. negative cutoff)
+      lab.textContent = `${m.label} ${fmt(p[m.id]||0)}ms`;
+      lab.dataset.mid = m.id;
+      labelsWrap.appendChild(lab);
+      lab.style.border = `1px solid ${m.color}`;
+    });
+  }
+
+  function drawMini(){
+    const W = mini.width, H = mini.height, c = mctx;
+    c.clearRect(0,0,W,H);
+    c.fillStyle = '#ffffff';
+    c.fillRect(0,0,W,H);
+    c.strokeStyle = '#e5e7eb';
+    c.beginPath(); c.moveTo(0,H/2); c.lineTo(W,H/2); c.stroke();
+
+    if(!currentBuffer) return;
+    const ch = currentBuffer.getChannelData(0);
+    const step = Math.max(1, Math.floor(ch.length / W));
+    c.strokeStyle = '#64748b';
+    c.beginPath();
+    let x=0;
+    for(let i=0;i<ch.length;i+=step){
+      let min=1e9, max=-1e9;
+      for(let j=0;j<step && i+j<ch.length;j++){ const v=ch[i+j]; if(v<min)min=v; if(v>max)max=v; }
+      const mid = H/2, scale = H*0.4;
+      c.moveTo(x, mid + min*scale); c.lineTo(x, mid + max*scale);
+      x+=1;
+    }
+    c.stroke();
+
+    const totalMs = currentBuffer.duration*1000;
+    const vw = getViewWindowMs(totalMs);
+    const x1 = (viewStartMs/totalMs)*W;
+    const x2 = ((viewStartMs+vw)/totalMs)*W;
+    c.fillStyle = 'rgba(59,130,246,0.15)';
+    c.fillRect(x1, 0, Math.max(2, x2-x1), H);
+    c.strokeStyle = '#3b82f6';
+    c.strokeRect(x1+0.5, 0.5, Math.max(2, x2-x1)-1, H-1);
+  }
+
+  function drawComposition(){
+    drawWave();
+    drawParamFills();
+    drawMarkerLines();
+    drawMarkers();
+    drawMini();
+  }
+
+  // ===== Interações =====
+  labelsWrap.addEventListener('click', (e)=>{ const m = e.target?.dataset?.mid; if(!m) return; selectedMarkerId = m; drawComposition(); });
+  labelsWrap.addEventListener('mousedown', (e)=>{
+    const t = e.target; if(!t.classList.contains('handle')) return;
+    e.preventDefault(); const id = t.dataset.mid;
+    const onMove = (ev)=> setParamSmart(id, xToMs(clamp(ev.clientX - wave.getBoundingClientRect().left, 0, wave.getBoundingClientRect().width)));
+    const onUp = ()=>{ window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+  });
+
+  let isDraggingCanvas=false;
+  function updateMouse(e){ const r = wave.getBoundingClientRect(); lastMouseX = clamp(e.clientX - r.left, 0, r.width); }
+  function setParamSmart(id, msAbs){
+    if(selectedRowIndex<0) return;
+    const p = rows[selectedRowIndex]; const before = {...p};
+    // when no audio is loaded, treat totalMs as Infinity so clamping doesn't zero out values
+    const totalMs = currentBuffer ? Math.round(currentBuffer.duration*1000) : Number.POSITIVE_INFINITY;
+
+    if(id==='offset'){
+      p.offset = Math.round(clamp(msAbs, 0, totalMs));
+      p.consonant = Math.round(clamp(p.consonant||0, 0, Math.max(0, totalMs - p.offset)));
+      p.preutter  = Math.round(clamp(p.preutter||0,  0, Math.max(0, totalMs - p.offset)));
+      p.overlap   = Math.round(clamp(p.overlap|| 0,  0, Math.max(0, totalMs - p.offset)));
+    } else if(id==='consonant'){
+      const dur = Math.round(clamp(msAbs - (p.offset||0), 0, Math.max(0,totalMs - (p.offset||0))));
+      p.consonant = dur;
+    } else if(id==='cutoff'){
+      // cutoff measured as distance from offset; store as negative value
+      const rel = msAbs - (p.offset||0);
+      const relClamped = clamp(rel, 0, Math.max(0, totalMs - (p.offset||0)));
+      p.cutoff = -Math.round(relClamped);
+    } else if(id==='preutter' || id==='overlap'){
+      const rel = msAbs - (p.offset||0);
+      p[id] = Math.round(clamp(rel, 0, Math.max(0, totalMs - (p.offset||0))));
+    }
+    syncInputsFromRow(p); pushPatch(selectedRowIndex, before, {...p}, 'Ajuste '+id+' -> '+String(p[id]||0)+'ms');
+    refreshOtoView();
+    drawComposition();
+  }
+
+  wave.addEventListener('mousedown', (e)=>{ 
+    isDraggingCanvas=true; 
+    updateMouse(e);
+  });
+  window.addEventListener('mouseup', ()=>{ isDraggingCanvas=false; });
+  wave.addEventListener('mousemove', (e)=>{
+    updateMouse(e);
+    const rect = wave.getBoundingClientRect();
+    const x = clamp(e.clientX - rect.left, 0, rect.width);
+    cursorMs = xToMs(x);
+    drawComposition();
+  });
+  wave.addEventListener('wheel', (e)=>{
+    if(!currentBuffer) return; e.preventDefault();
+    const rect = wave.getBoundingClientRect();
+    const x = clamp(e.clientX - rect.left, 0, rect.width);
+    const anchorMs = xToMs(x);
+    const factor = e.deltaY > 0 ? 1/1.1 : 1.1;
+    const oldZoom = zoom;
+    // apply smooth zoom without rounding; zoom is floating point
+    zoom = clamp(oldZoom * factor, 1, 128);
+    // update slider value (it can accept decimal values)
+    zoomSlider.value = String(zoom);
+    // display zoom with one decimal for better readability
+    zoomLabel.textContent = `${zoom.toFixed(1)}×`;
+    const totalMs = currentBuffer.duration*1000;
+    const vw = getViewWindowMs(totalMs);
+    viewStartMs = clamp(anchorMs - (x/wave.width)*vw, 0, Math.max(0, totalMs - vw));
+    drawComposition();
+  }, {passive:false});
+
+  // Click na waveform toca apenas entre corte inicial e corte final
+  wave.addEventListener('click', (e)=>{
+    if(!currentBuffer || selectedRowIndex<0) return;
+    const p = rows[selectedRowIndex];
+    const totalMs = currentBuffer.duration*1000;
+    
+    const offsetMs = clamp(Math.round(p.offset||0), 0, totalMs);
+    const c = Math.round(p.cutoff||0);
+    // cutoff is relative to offset; absolute position = offset + |c|
+    let cutoffMs = clamp(offsetMs + Math.abs(c), 0, totalMs);
+    // ensure cutoff is after offset
+    if(cutoffMs <= offsetMs) cutoffMs = totalMs;
+    playRegion(offsetMs / 1000, cutoffMs / 1000);
+  });
+
+  function playRegion(startSec, endSec){
+    if(!currentBuffer) return;
+    if(source){ try{ source.stop(); }catch{} try{ source.disconnect(); }catch{} source=null; }
+    
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    audioCtx.resume();
+    
+    source = audioCtx.createBufferSource();
+    source.buffer = currentBuffer;
+    source.connect(audioCtx.destination);
+    
+    const duration = Math.max(0, endSec - startSec);
+    const when = audioCtx.currentTime + 0.01;
+    source.start(when, startSec, duration);
+    source.onended = ()=>{ source=null; };
+  }
+
+  window.addEventListener('keydown', (e)=>{
+    if(selectedRowIndex<0) return;
+    const k = e.key, ku = k.toUpperCase();
+    if(ku==='Y'){ togglePlay(); return; }
+    
+    // Tecla 0 duplica o alias selecionado
+    if(k==='0'){ 
+      const p=getCurrentRow(); 
+      if(!p) return; 
+      const copy={...p}; 
+      rows.splice(selectedRowIndex+1,0,copy); 
+      pushAction({type:'insert', index:selectedRowIndex+1, row:{...copy}}, 'Duplicar linha (tecla 0)'); 
+      selectedRowIndex++; 
+      renderAliasList(); 
+      refreshOtoView(); 
+      selectRow(selectedRowIndex); 
+      return; 
+    }
+    
+    if(k==='9'){ 
+      const p=getCurrentRow(); 
+      if(!p) return; 
+      const novo=prompt('Novo alias:', p.alias||''); 
+      if(novo!==null){ 
+        const before={...p}; 
+        p.alias=novo; 
+        pushPatch(selectedRowIndex, before, {...p}, 'Renomear alias'); 
+        syncInputsFromRow(p); 
+        refreshOtoView(); 
+        renderAliasList(); 
+      } 
+      return; 
+    }
+    
+    if(e.shiftKey && ku==='D'){ 
+      if(selectedRowIndex<0 || !rows.length) return; 
+      const idx=selectedRowIndex; 
+      const removed=rows.splice(idx,1)[0]; 
+      pushAction({type:'remove', index:idx, row:{...removed}}, 'Deletar alias'); 
+      selectedRowIndex=Math.min(idx, rows.length-1); 
+      renderAliasList(); 
+      refreshOtoView(); 
+      if(rows.length) selectRow(selectedRowIndex); 
+      else { currentName.textContent='(nenhum arquivo)'; drawComposition(); } 
+      return; 
+    }
+    
+    if(k==='ArrowDown'){ e.preventDefault(); if(selectedRowIndex<rows.length-1){ selectRow(selectedRowIndex+1); } return; }
+    if(k==='ArrowUp'){ e.preventDefault(); if(selectedRowIndex>0){ selectRow(selectedRowIndex-1); } return; }
+    
+    const m = markers.find(mm=> mm.key===ku); if(!m) return;
+    const msAbs = (lastMouseX!=null) ? xToMs(lastMouseX) : cursorMs;
+    setParamSmart(m.id, msAbs);
+  });
+
+  // parâmetros <-> UI
+  function loadParamsToUI(){
+    const p = getCurrentRow(); if(!p) return;
+    aliasIn.value=p.alias||'';
+    offsetIn.value= fmt(p.offset||0);
+    consonantIn.value= fmt(p.consonant||0);
+    cutoffIn.value= fmt(p.cutoff||0);
+    preutterIn.value= fmt(p.preutter||0);
+    overlapIn.value= fmt(p.overlap||0);
+    cursorMs=p.offset||0;
+    drawComposition();
+  }
+  function syncInputsFromRow(p){
+    aliasIn.value=p.alias||'';
+    offsetIn.value= fmt(p.offset||0);
+    consonantIn.value= fmt(p.consonant||0);
+    cutoffIn.value= fmt(p.cutoff||0);
+    preutterIn.value= fmt(p.preutter||0);
+    overlapIn.value= fmt(p.overlap||0);
+  }
+  ;[aliasIn,offsetIn,consonantIn,cutoffIn,preutterIn,overlapIn].forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const p=getCurrentRow(); if(!p) return; const before={...p};
+      // when no audio is loaded, treat totalMs as Infinity so clamping doesn't zero out values
+      const totalMs = currentBuffer ? Math.round(currentBuffer.duration*1000) : Number.POSITIVE_INFINITY;
+      p.alias=aliasIn.value;
+
+      p.offset   = Math.round(clamp(Number(offsetIn.value)||0, 0, totalMs));
+      p.consonant= Math.round(clamp(Number(consonantIn.value)||0, 0, Math.max(0,totalMs - p.offset)));
+      {
+        // cutoff input is interpreted as distance from offset; always stored negative
+        const raw = Math.abs(Number(cutoffIn.value)||0);
+        const maxRel = Math.max(0, totalMs - p.offset);
+        const rel = clamp(raw, 0, maxRel);
+        p.cutoff = -Math.round(rel);
+      }
+      p.preutter = Math.round(clamp(Number(preutterIn.value)||0, 0, Math.max(0,totalMs - p.offset)));
+      p.overlap  = Math.round(clamp(Number(overlapIn.value)||0, 0, Math.max(0,totalMs - p.offset)));
+
+      // sync inputs to reflect new internal state (e.g. cutoff negative)
+      syncInputsFromRow(p);
+
+      pushPatch(selectedRowIndex, before, {...p}, 'Editar campos do alias'); refreshOtoView(); drawComposition(); renderAliasList();
+    });
+  });function refreshOtoView(){
+    const text = serializeOto(rows);
+    const lines = text.split('\n');
+    countLines.textContent = String(lines.length);
+    otoView.value = text;
+  }
+  otoView.addEventListener('input', ()=>{
+    const cur = getCurrentRow();
+    rows = parseOto(otoView.value);
+    if(cur){
+      let keepIdx = rows.findIndex(r=> r.filename===cur.filename && r.alias===cur.alias);
+      if(keepIdx<0){
+        keepIdx = rows.findIndex(r=> lower(basename(r.filename))===lower(basename(cur.filename)) && r.alias===cur.alias );
+      }
+      selectedRowIndex = keepIdx>=0 ? keepIdx : Math.min(selectedRowIndex, rows.length-1);
+    }
+    drawComposition(); renderAliasList();
+  });
+
+  // mini-mapa
+  let draggingMini = false;
+  mini.addEventListener('mousedown', (e)=>{ if(!currentBuffer) return; draggingMini=true; centerViewAtMs(miniXToMs(e)); });
+  window.addEventListener('mouseup', ()=> draggingMini=false);
+  mini.addEventListener('mousemove', (e)=>{ if(!draggingMini || !currentBuffer) return; centerViewAtMs(miniXToMs(e)); });
+  function miniXToMs(e){
+    const rect = mini.getBoundingClientRect();
+    const x = clamp(e.clientX - rect.left, 0, rect.width);
+    const totalMs = currentBuffer.duration*1000;
+    return (x/rect.width)*totalMs;
+  }
+  function centerViewAtMs(ms){
+    const totalMs = currentBuffer.duration*1000;
+    const vw = getViewWindowMs(totalMs);
+    viewStartMs = clamp(ms - vw/2, 0, Math.max(0, totalMs - vw));
+    drawComposition();
+  }
+
+  // zoom + resize
+  zoomSlider.addEventListener('input', (e)=>{
+    if(!currentBuffer) return;
+    zoom = clamp(Number(e.target.value)||1,1,128);
+    zoomLabel.textContent = `${Math.round(zoom)}×`;
+    const totalMs = currentBuffer.duration*1000;
+    const vw = getViewWindowMs(totalMs);
+    viewStartMs = clamp(viewStartMs, 0, Math.max(0, totalMs - vw));
+    drawComposition();
+  });
+
+  function resizeCanvas(){
+    const ratio=Math.max(1,Math.floor(window.devicePixelRatio||1));
+    const wrap = wave.parentElement.getBoundingClientRect();
+    wave.width=Math.max(600,Math.floor(wrap.width*ratio)); wave.height=Math.floor(260*ratio); ctxWave.setTransform(ratio,0,0,ratio,0,0);
+    mini.width=Math.max(300,Math.floor(wrap.width*ratio)); mini.height=Math.floor(60*ratio); mctx.setTransform(ratio,0,0,ratio,0,0);
+  }
+  const ro = new ResizeObserver(()=>{ resizeCanvas(); drawComposition(); }); ro.observe(qs('#pane-wave .card-body'));
+  window.addEventListener('resize', ()=>{ resizeCanvas(); drawComposition(); });
+
+  // áudio
+  function togglePlay(){
+    if(!currentBuffer) return;
+    if(source){ try{ source.stop(); }catch{} try{ source.disconnect(); }catch{} source=null; return; }
+    (audioCtx|| (audioCtx = new (window.AudioContext||window.webkitAudioContext)())).resume();
+    source = audioCtx.createBufferSource(); source.buffer=currentBuffer; source.connect(audioCtx.destination);
+    const when=audioCtx.currentTime+0.01; const startAt=Math.max(0,cursorMs/1000); source.start(when,startAt); source.onended=()=>{ source=null; };
+  }
+  $('btnPlay').addEventListener('click', togglePlay);
+  $('btnStop').addEventListener('click', ()=>{ if(source){ try{source.stop();}catch{} try{source.disconnect();}catch{} source=null; }});
+
+  // init
+  initFloatables();
+  renderAliasList();
+  
+
+// === Preferences & Theme ===
+const PREF_KEY = 'copaiba_prefs_v2';
+const defaultPrefs = { theme:'light', showSpectro:false, showLog:false, coordSamples:false, lineWidth:1 };
+let prefs = {...defaultPrefs};
+function loadPrefs(){ try{ const j = JSON.parse(localStorage.getItem(PREF_KEY)||'{}'); prefs = {...defaultPrefs, ...j}; }catch(e){ prefs = {...defaultPrefs}; } }
+function savePrefs(){ localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }
+function applyTheme(){
+  const themes = ['light','dark','emerald','violet','pastel','cyan','amber','graphite'];
+  document.body.classList.remove(...themes.map(t=>'theme-'+t));
+  document.body.classList.add('theme-'+prefs.theme);
+}
+// === Settings Modal ===
+function openSettings(){ $('settingsModal').classList.remove('hidden'); $('themeSelect').value = prefs.theme; $('optSpectro').checked=prefs.showSpectro; $('optLog').checked=prefs.showLog; $('optSamples').checked=prefs.coordSamples; $('lineWidth').value=prefs.lineWidth; }
+function closeSettings(){ $('settingsModal').classList.add('hidden'); }
+// === Active field indicator ===
+let activeParamId = null;
+['offset','overlap','preutter','consonant','cutoff'].forEach(id=>{ const el = $(id); if(el){ el.addEventListener('focus', ()=>{activeParamId=id; drawComposition();}); el.addEventListener('blur', ()=>{activeParamId=null; drawComposition();}); }});
+// wrap drawMarkerLines
+const _drawMarkerLines = drawMarkerLines;
+drawMarkerLines = function(){
+  if(selectedRowIndex<0 || !currentBuffer) return;
+  const p = rows[selectedRowIndex];
+  const W1 = wave.width, H1 = wave.height;
+  ctxWave.save();
+  ctxWave.lineWidth = prefs.lineWidth || 1;
+  markers.forEach(m=>{
+    const x = msToX(markerAbs(p, m.id)); if(x<0||x>W1) return;
+    let color = (m.id==='offset')? COLORS.offset : (m.id==='consonant')? COLORS.consonant : (m.id==='cutoff')? COLORS.cutoff : (m.id==='preutter')? COLORS.preutter : COLORS.overlap;
+    if(activeParamId===m.id){
+      const t = (performance.now()/400)%1; const a = 0.45 + 0.45*Math.sin(t*2*Math.PI);
+      ctxWave.strokeStyle = color; ctxWave.globalAlpha = 0.5 + a*0.5; ctxWave.lineWidth = (prefs.lineWidth||1)+1;
+    } else { ctxWave.strokeStyle = color; ctxWave.globalAlpha = 0.9; ctxWave.lineWidth = prefs.lineWidth||1; }
+    ctxWave.beginPath(); ctxWave.moveTo(Math.round(x)+0.5,0); ctxWave.lineTo(Math.round(x)+0.5,H1); ctxWave.stroke();
+  });
+  ctxWave.restore();
+}
+// small puck
+const _drawMarkers = drawMarkers;
+drawMarkers = function(){
+  _drawMarkers();
+  if(!currentBuffer || selectedRowIndex<0 || !activeParamId) return;
+  const p = rows[selectedRowIndex]; const x = msToX(markerAbs(p, activeParamId));
+  if(x<0 || x>wave.width) return;
+  const puck=document.createElement('div'); puck.className='absolute rounded-full'; puck.style.left=(x-3)+'px'; puck.style.top='4px'; puck.style.width='6px'; puck.style.height='6px'; puck.style.background='var(--accent)'; puck.style.boxShadow='0 0 0 4px rgba(0,0,0,.12)'; labelsWrap.appendChild(puck);
+}
+// Grid
+function drawGrid(){
+  if(!currentBuffer) return;
+  const totalMs = currentBuffer.duration*1000; const vw = getViewWindowMs(totalMs);
+  let step = 100; if(vw<2000) step=50; if(vw<800) step=20;
+  ctxWave.save(); ctxWave.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid').trim() || '#e5e7eb'; ctxWave.lineWidth=1;
+  const start = Math.max(0, viewStartMs - (viewStartMs%step));
+  for(let ms=start; ms<viewStartMs+vw; ms+=step){ const x=Math.round(msToX(ms))+0.5; ctxWave.beginPath(); ctxWave.moveTo(x,0); ctxWave.lineTo(x,wave.height); ctxWave.stroke(); }
+  ctxWave.restore();
+}
+const __drawComposition = drawComposition;
+drawComposition = function(){ ctxWave.clearRect(0,0,wave.width,wave.height); drawGrid(); __drawComposition(); }
+// Smooth zoom + Shift+wheel pan
+let targetZoom=1;
+function animateZoom(){ if(!currentBuffer) return; if(Math.abs(zoom-targetZoom)<0.001) return; zoom += (targetZoom-zoom)*0.25; zoomSlider.value=String(Math.max(1, Math.min(128, Math.round(zoom*10)/10))); zoomLabel.textContent=`${(Math.round(zoom*10)/10).toFixed(1)}×`; drawComposition(); requestAnimationFrame(animateZoom); }
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadPrefs(); applyTheme();
+  $('btnTheme')?.addEventListener('click', ()=>{ prefs.theme = (prefs.theme==='light'?'dark':'light'); savePrefs(); applyTheme(); drawComposition(); });
+  $('btnSettings')?.addEventListener('click', openSettings);
+  $('btnCloseSettings')?.addEventListener('click', closeSettings);
+  $('btnSettingsCancel')?.addEventListener('click', closeSettings);
+  $('btnSettingsSave')?.addEventListener('click', ()=>{ prefs.theme=$('themeSelect').value; prefs.showSpectro=$('optSpectro').checked; prefs.showLog=$('optLog').checked; prefs.coordSamples=$('optSamples').checked; prefs.lineWidth=Number($('lineWidth').value)||1; savePrefs(); applyTheme(); closeSettings(); drawComposition(); });
+  $('btnResetFloats')?.addEventListener('click', ()=>{ localStorage.removeItem('copaiba_floats'); location.reload(); });
+  wave.addEventListener('wheel', (e)=>{
+    if(!currentBuffer) return;
+    if(e.shiftKey){ // pan horizontal
+      e.preventDefault(); const totalMs=currentBuffer.duration*1000; const vw=getViewWindowMs(totalMs); const dir=e.deltaY>0?1:-1; const delta=vw*0.1*dir; viewStartMs=Math.max(0, Math.min(totalMs-vw, viewStartMs+delta)); drawComposition(); return;
+    }
+    e.preventDefault();
+    const rect = wave.getBoundingClientRect(); const x = Math.max(0, Math.min(rect.width, e.clientX-rect.left)); const anchor = xToMs(x);
+    const factor = e.deltaY>0? 1/1.08 : 1.08; targetZoom = Math.max(1, Math.min(128, zoom*factor));
+    const totalMs=currentBuffer.duration*1000; const vw=(totalMs/targetZoom); viewStartMs = Math.max(0, Math.min(totalMs-vw, anchor - (x/wave.width)*vw));
+    requestAnimationFrame(animateZoom);
+  }, {passive:false});
+});
+</script>
+
+<div id="settingsModal" class="fixed inset-0 hidden items-start justify-center z-50">
+  <div class="absolute inset-0" style="background:rgba(0,0,0,.4)"></div>
+  <div class="relative mt-14 w-[520px] rounded-xl border shadow-xl p-4" style="background:var(--card); color:var(--text);">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-base font-semibold">Configurações</h3>
+      <button id="btnCloseSettings" class="px-2">✕</button>
+    </div>
+    <div class="space-y-3 text-sm">
+      <div>
+        <label class="block mb-1">Tema</label>
+        <select id="themeSelect" class="w-full px-2 py-2 rounded border bg-transparent">
+          <option value="light">Claro</option>
+          <option value="dark">Escuro</option>
+          <option value="emerald">Esmeralda</option>
+          <option value="violet">Violeta</option>
+          <option value="pastel">Rosa pastel</option>
+          <option value="cyan">Ciano</option>
+          <option value="amber">Âmbar</option>
+          <option value="graphite">Grafite</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex items-center gap-2"><input id="optSpectro" type="checkbox"/> Mostrar espectrograma</label>
+        <label class="flex items-center gap-2"><input id="optLog" type="checkbox"/> Mostrar log de ações</label>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="flex items-center gap-2"><input id="optSamples" type="checkbox"/> Exibir coordenadas em samples</label>
+        <div>
+          <label class="block mb-1">Largura da linha</label>
+          <input id="lineWidth" type="range" min="1" max="4" step="1" value="1"/>
+        </div>
+      </div>
+      <div class="flex items-center justify-between mt-3">
+        <button id="btnResetFloats" class="px-3 py-2 rounded border">Resetar painéis</button>
+        <div class="flex gap-2">
+          <button id="btnSettingsCancel" class="px-3 py-2 rounded border">Cancelar</button>
+          <button id="btnSettingsSave" class="px-3 py-2 rounded border" style="border-color:var(--accent); color:var(--accent);">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
