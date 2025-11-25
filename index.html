@@ -206,8 +206,8 @@
             </div>
 
             <div class="px-3 pb-2 text-xs text-muted">
-              Q/W/E/R/T = marcar • Y = tocar/pausar • 0 = duplicar • 9 = renomear • S = alternar ★ • ↑/↓ = navegar •
-              Roda = H-Zoom • Shift+Roda = rolar • Alt+Roda = V-Zoom
+              Q/W/E/R/T = marcar • Y = tocar/pausar • Shift+0 = duplicar • Shift+9 = renomear • S = alternar ★ • ↑/↓ = navegar •
+              Ctrl+Roda = H-Zoom • Shift+Roda = rolar • Alt+Roda = V-Zoom
             </div>
           </div>
         </div>
@@ -805,7 +805,7 @@
       const starred = starSet.has(keyFor(r));
 
       const div=document.createElement('div');
-      div.className='alias-row flex items-center gap-2 px-2 py-2 text-sm rounded-md hover:bg-slate-500/10 cursor-pointer'+(isSelected?' selected':'');
+      div.className='alias-row flex items-center gap-2 px-2 py-2 rounded-md hover:bg-slate-500/10 cursor-pointer'+(isSelected?' selected':'');
       const starBtn = `<button class="px-1 star" title="${starred?'Desmarcar ★':'Marcar ★'}">${starred?'★':'☆'}</button>`;
       const aliasHtml = `<div class="font-mono text-xs truncate" title="${r.alias||'(sem alias)'}">${r.alias||'(sem alias)'}</div>`;
       const wavHtml = hasFile
@@ -845,6 +845,20 @@
     $('btnSave').disabled = rows.length===0;
     updateStarCounter();
     if(selectedDom) selectedDom.scrollIntoView({block:'nearest'});
+
+    // Controle de edição do campo de alias conforme seleção
+    const selCount = Array.isArray(selectedRowIndices) ? selectedRowIndices.length : 0;
+    if(selCount === 1){
+      aliasIn.disabled = false;
+      aliasIn.placeholder = 'alias';
+    } else if(selCount > 1){
+      aliasIn.disabled = true;
+      aliasIn.placeholder = 'Alias não editável em multiseleção';
+    } else {
+      aliasIn.disabled = true;
+      aliasIn.placeholder = 'alias';
+      aliasIn.value = '';
+    }
   }
 
   filterInput.addEventListener('input',renderAliasList);
@@ -1261,17 +1275,19 @@
       prefs.vzoom=vzoom; savePrefs();
       drawAll(); return;
     }
-    e.preventDefault();
-    const anchorMs=xToMs(x);
-    const factor=e.deltaY>0?1/1.1:1.1;
-    const oldZoom=zoom;
-    zoom=clamp(oldZoom*factor,1,128);
-    zoomSlider.value=String(zoom);
-    zoomLabel.textContent=`${zoom.toFixed(1)}×`;
-    const totalMs=currentBuffer.duration*1000;
-    const vw=getViewWindowMs(totalMs);
-    viewStartMs = clamp(anchorMs - (x/wave.width)*vw, 0, Math.max(0,totalMs-vw));
-    drawAll();
+    if(e.ctrlKey){
+      e.preventDefault();
+      const anchorMs=xToMs(x);
+      const factor=e.deltaY>0?1/1.1:1.1;
+      const oldZoom=zoom;
+      zoom=clamp(oldZoom*factor,1,128);
+      zoomSlider.value=String(zoom);
+      zoomLabel.textContent=`${zoom.toFixed(1)}×`;
+      const totalMs=currentBuffer.duration*1000;
+      const vw=getViewWindowMs(totalMs);
+      viewStartMs = clamp(anchorMs - (x/wave.width)*vw, 0, Math.max(0,totalMs-vw));
+      drawAll();
+    }
   }, {passive:false});
 
   wave.addEventListener('click', ()=>{
@@ -1361,8 +1377,7 @@
           if(idx===mainIndex) return;
           const t=rows[idx]; if(!t) return;
           const b={...t};
-          if(fieldId==='alias') t.alias=p.alias;
-          else if(fieldId==='offset') t.offset=p.offset;
+          if(fieldId==='offset') t.offset=p.offset;
           else if(fieldId==='consonant') t.consonant=p.consonant;
           else if(fieldId==='cutoff') t.cutoff=p.cutoff;
           else if(fieldId==='preutter') t.preutter=p.preutter;
@@ -1379,82 +1394,35 @@
 
   function refreshOtoView(){
     const text=serializeOto(rows);
-    const lines=text.split('\n');
-    countLines.textContent=String(lines.length);
+    const lines=text?text.split('\n').length:0;
     otoView.value=text;
+    countLines.textContent=String(lines);
   }
   otoView.addEventListener('input',()=>{
-    const cur=getCurrentRow();
-    rows=parseOto(otoView.value);
-    if(cur){
-      let keepIdx=rows.findIndex(r=> r.filename===cur.filename && r.alias===cur.alias);
-      if(keepIdx<0){
-        keepIdx=rows.findIndex(r=> lower(basename(r.filename))===lower(basename(cur.filename)) && r.alias===cur.alias );
-      }
-      selectedRowIndex=keepIdx>=0?keepIdx:Math.min(selectedRowIndex,rows.length-1);
-    }
-    drawAll(); renderAliasList();
+    rows=parseOto(otoView.value||'');
+    countAliases.textContent=String(rows.length);
+    renderAliasList();
   });
 
-  // mini interações
-  let draggingMini=false;
-  mini.addEventListener('mousedown',e=>{
-    if(!currentBuffer) return;
-    draggingMini=true;
-    centerViewAtMs(miniXToMs(e));
-  });
-  addEventListener('mouseup',()=> draggingMini=false);
-  mini.addEventListener('mousemove',e=>{
-    if(!draggingMini || !currentBuffer) return;
-    centerViewAtMs(miniXToMs(e));
-  });
-  function miniXToMs(e){
-    const r=mini.getBoundingClientRect();
-    const x=clamp(e.clientX-r.left,0,r.width);
-    const totalMs=currentBuffer.duration*1000;
-    return (x/r.width)*totalMs;
-  }
-  function centerViewAtMs(ms){
-    const totalMs=currentBuffer.duration*1000;
-    const vw=getViewWindowMs(totalMs);
-    viewStartMs=clamp(ms - vw/2,0,Math.max(0,totalMs-vw));
-    drawAll();
-  }
-
-  // sliders
-  zoomSlider.addEventListener('input',e=>{
-    if(!currentBuffer) return;
-    zoom=clamp(Number(e.target.value)||1,1,128);
-    zoomLabel.textContent=`${Math.round(zoom)}×`;
-    const totalMs=currentBuffer.duration*1000;
-    const vw=getViewWindowMs(totalMs);
-    viewStartMs=clamp(viewStartMs,0,Math.max(0,totalMs-vw));
-    drawAll();
-  });
-  vzoomSlider.addEventListener('input',e=>{
-    vzoom=clamp(Number(e.target.value)||1,0.25,4);
-    vzoomLabel.textContent=vzoom.toFixed(2)+'×';
-    prefs.vzoom=vzoom; savePrefs();
-    drawAll();
-  });
-
-  // espectrograma toggle
-  toggleSpec.addEventListener('change', async ()=>{
-    prefs.showSpec = toggleSpec.checked; savePrefs();
-    SPEC_WRAP.classList.toggle('hidden', !toggleSpec.checked);
-    if(toggleSpec.checked && selectedRowIndex>=0){
-      const fIdx=getFileIndexForFilename(rows[selectedRowIndex]?.filename||'');
-      if(fIdx>=0) await ensureSpectrogramFor(fIdx);
-    }
-    drawAll();
-  });
-
+  /* ===== Redimensionamento responsivo ===== */
   function resizeCanvas(){
     const ratio=Math.max(1,Math.floor(devicePixelRatio||1));
     const wrap=wave.parentElement.getBoundingClientRect();
-    wave.width=Math.max(600,Math.floor(wrap.width*ratio)); wave.height=Math.floor(260*ratio); ctxWave.setTransform(ratio,0,0,ratio,0,0);
-    mini.width=Math.max(300,Math.floor(wrap.width*ratio)); mini.height=Math.floor(60*ratio); mctx.setTransform(ratio,0,0,ratio,0,0);
+    wave.width=Math.max(300,Math.floor(wrap.width*ratio));
+    wave.height=Math.floor(260*ratio);
+    ctxWave.setTransform(ratio,0,0,ratio,0,0);
+
+    const wrapMini=mini.parentElement.getBoundingClientRect();
+    mini.width=Math.max(300,Math.floor(wrapMini.width*ratio));
+    mini.height=Math.floor(60*ratio);
+    mctx.setTransform(ratio,0,0,ratio,0,0);
+
+    const wrapSpec=spec.parentElement.getBoundingClientRect();
+    spec.width=Math.max(300,Math.floor(wrapSpec.width*ratio));
+    spec.height=Math.floor(180*ratio);
+    sctx.setTransform(ratio,0,0,ratio,0,0);
   }
+
   const ro=new ResizeObserver(()=>{ resizeCanvas(); drawAll(); });
   ro.observe(qs('#pane-wave .card-body'));
   addEventListener('resize',()=>{ resizeCanvas(); drawAll(); });
@@ -1462,24 +1430,29 @@
   // atalhos de navegação/edição
   addEventListener('keydown',e=>{
     if(selectedRowIndex<0 && !rows.length) return;
-    const k=e.key, ku=k.toUpperCase();
+    const k=e.key, ku=(k||'').toUpperCase();
+    const code=e.code||'';
     if(ku==='Y'){
       $('btnPlay').click(); return;
     }
-    if(k==='0'){
+    // Shift + 0 = duplicar linha
+    if(!e.ctrlKey && !e.altKey && e.shiftKey && code==='Digit0'){
+      e.preventDefault();
       const p=getCurrentRow(); if(!p) return;
       const copy={...p};
       rows.splice(selectedRowIndex+1,0,copy);
-      pushAction({type:'insert',index:selectedRowIndex+1,row:{...copy}},'Duplicar linha (tecla 0)');
+      pushAction({type:'insert',index:selectedRowIndex+1,row:{...copy}},'Duplicar linha (Shift+0)');
       selectedRowIndex++; renderAliasList(); refreshOtoView(); selectRow(selectedRowIndex); return;
     }
-    if(k==='9'){
+    // Shift + 9 = renomear alias
+    if(!e.ctrlKey && !e.altKey && e.shiftKey && code==='Digit9'){
+      e.preventDefault();
       const p=getCurrentRow(); if(!p) return;
       const novo=prompt('Novo alias:', p.alias||'');
       if(novo!==null){
         const before={...p};
         p.alias=novo;
-        pushPatch(selectedRowIndex,before,{...p},'Renomear alias');
+        pushPatch(selectedRowIndex,before,{...p},'Renomear alias (Shift+9)');
         syncInputsFromRow(p); refreshOtoView(); renderAliasList();
       }
       return;
@@ -1522,7 +1495,7 @@
   document.addEventListener('DOMContentLoaded', ()=>{
     loadPrefs(); loadStars(); applyTheme();
     $('btnTheme').addEventListener('click',()=>{
-      prefs.theme=(prefs.theme==='dark'?'light':'dark'); savePrefs(); applyTheme(); drawAll();
+      prefs.theme=(prefs.theme==='dark'?'light':'light'==='dark'); savePrefs(); applyTheme(); drawAll();
     });
     vzoom=prefs.vzoom||1; vzoomSlider.value=vzoom; vzoomLabel.textContent=vzoom.toFixed(2)+'×';
     toggleSpec.checked = !!prefs.showSpec;
@@ -1547,4 +1520,3 @@
 </body>
 
 </html>
-
