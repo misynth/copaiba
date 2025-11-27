@@ -1,11 +1,13 @@
 <!doctype html>
 <html lang="pt-br">
 <head>
-  <link rel="icon" href="favicon.ico" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>COPAIBA @ Editor de oto.ini</title>
+
+  <!-- Tailwind utilitário -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Encoding.js para Shift_JIS / ANSI JP -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/1.0.30/encoding.min.js" defer></script>
 
   <style>
@@ -165,12 +167,12 @@
               <div class="flex items-center gap-2">
                 <input id="zoom" type="range" min="1" max="128" step="1" value="1" />
                 <span id="zoomLabel">1×</span>
-                <span>H-Zoom</span>
+                <span>H-Zoom (Ctrl+Roda)</span>
               </div>
               <div class="flex items-center gap-2">
                 <input id="vzoom" type="range" min="0.25" max="4" step="0.05" value="1" />
                 <span id="vzoomLabel">1.00×</span>
-                <span>V-Zoom</span>
+                <span>V-Zoom (Alt+Roda)</span>
               </div>
               <label class="flex items-center gap-1">
                 <input id="toggleSpec" type="checkbox" class="accent-blue-500"> Espectrograma
@@ -206,8 +208,8 @@
             </div>
 
             <div class="px-3 pb-2 text-xs text-muted">
-              Q/W/E/R/T = marcar • Y = tocar/pausar • Shift+0 = duplicar • Shift+9 = renomear • S = alternar ★ • ↑/↓ = navegar •
-              Ctrl+Roda = H-Zoom • Shift+Roda = rolar • Alt+Roda = V-Zoom
+              Q/W/E/R/T = marcar • Y = tocar/pausar • Shift+0 = duplicar • Shift+9 = renomear •
+              S = alternar ★ • ↑/↓ ou Scroll = navegar • Ctrl+Roda = H-Zoom • Shift+Roda = rolar • Alt+Roda = V-Zoom
             </div>
           </div>
         </div>
@@ -267,24 +269,6 @@
             <textarea id="otoView" class="w-full h-60 p-2 rounded-lg border bg-transparent text-xs leading-5" spellcheck="false"></textarea>
           </div>
         </div>
-
-        <!-- Log -->
-        <div id="pane-log" class="card floatable" data-float-key="log" style="max-height:280px">
-          <div class="card-header drag-handle">
-            <div class="flex items-center gap-2">
-              <span class="text-sm">Log de ações</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button id="btnUndo" class="px-2 py-1 rounded-lg border bg-transparent">↶ Desfazer</button>
-              <button id="btnRedo" class="px-2 py-1 rounded-lg border bg-transparent">↷ Refazer</button>
-              <button class="float-btn" data-minimize title="Minimizar">_</button>
-              <button class="float-btn" data-float-toggle title="Destacar/Voltar">🗖</button>
-            </div>
-          </div>
-          <div class="card-body p-2">
-            <div id="logList" class="space-y-1 max-h-48 overflow-auto text-xs"></div>
-          </div>
-        </div>
       </section>
     </div>
   </main>
@@ -298,25 +282,21 @@
   const qs = (sel,root=document)=> root.querySelector(sel);
   const qsa = (sel,root=document)=> [...root.querySelectorAll(sel)];
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
-  const basename = (p)=> (p||'').split(/[\\/]/).pop();
+  const basename = (p)=> (p||'').split(/[\\\\/]/).pop();
   const lower = (s)=> String(s||'').toLowerCase();
   const round0=(x)=> Math.round(Number(x||0));
   const fmt = (ms)=> String(round0(ms));
 
-  /* ===== Log & Undo/Redo ===== */
-  const logList = $('logList'); let undoStack=[], redoStack=[];
-  function logMsg(msg){
-    const line=document.createElement('div');
-    line.className='text-xs font-mono leading-5';
-    line.textContent=`[${new Date().toLocaleTimeString()}] ${msg}`;
-    logList.appendChild(line); logList.scrollTop=logList.scrollHeight;
-  }
-  function updateUndoRedoButtons(){
-    $('btnUndo').disabled = !undoStack.length;
-    $('btnRedo').disabled = !redoStack.length;
-  }
+  /* ===== Undo / Redo (sem log visual) ===== */
+  let undoStack=[], redoStack=[];
+  function logMsg(_msg){} // log desligado
+  function updateUndoRedoButtons(){} // não há botões agora
+
   function pushAction(action, desc){
-    undoStack.push(action); redoStack=[]; logMsg(desc); updateUndoRedoButtons();
+    undoStack.push(action);
+    redoStack=[];
+    logMsg(desc);
+    updateUndoRedoButtons();
   }
   function pushPatch(index,before,after,desc){
     if(JSON.stringify(before)===JSON.stringify(after)) return;
@@ -344,12 +324,14 @@
       }
     }
   }
-  $('btnUndo').addEventListener('click',()=>{
-    const a=undoStack.pop(); if(!a) return; redoStack.push(a); applyAction(a,'undo'); logMsg('Undo'); updateUndoRedoButtons();
-  });
-  $('btnRedo').addEventListener('click',()=>{
-    const a=redoStack.pop(); if(!a) return; undoStack.push(a); applyAction(a,'redo'); logMsg('Redo'); updateUndoRedoButtons();
-  });
+  function undoOnce(){
+    const a=undoStack.pop(); if(!a) return;
+    redoStack.push(a); applyAction(a,'undo'); logMsg('Undo'); updateUndoRedoButtons();
+  }
+  function redoOnce(){
+    const a=redoStack.pop(); if(!a) return;
+    undoStack.push(a); applyAction(a,'redo'); logMsg('Redo'); updateUndoRedoButtons();
+  }
 
   /* ===== Float, Dock e Minimizar ===== */
   const FLOAT_KEY_PREFIX='flt:'; const DOCK_KEY='dock:';
@@ -389,6 +371,28 @@
     localStorage.setItem(FLOAT_KEY_PREFIX+key, JSON.stringify({...prev,...data}));
   }
 
+  function minimizePane(pane, boot=false){
+    const key=pane.dataset.floatKey||'';
+    pane.classList.add('minimized');
+    const title = (qs('.card-header span, .card-header .text-sm',pane)?.innerText||'painel').split('\n')[0];
+    let item = qs(`.dock-item[data-key="${key}"]`, dock);
+    if(!item){
+      item = document.createElement('button');
+      item.className='dock-item'; item.dataset.key=key;
+      item.textContent=title||key||'painel';
+      item.title='Restaurar “'+item.textContent+'”';
+      item.addEventListener('click',()=> restorePane(key));
+      dock.appendChild(item);
+    }
+    ensureDockVisible();
+    if(!boot) savePaneState(pane,{minimized:true});
+  }
+  function restorePane(key){
+    const pane = qsa('.floatable').find(p=> (p.dataset.floatKey||'')===key); if(!pane) return;
+    pane.classList.remove('minimized'); savePaneState(pane,{minimized:false});
+    const item = qs(`.dock-item[data-key="${key}"]`, dock); item?.remove(); ensureDockVisible();
+  }
+
   function initFloatables(){
     qsa('.floatable').forEach(pane=>{
       const btnFloat = qs('[data-float-toggle]',pane);
@@ -423,28 +427,6 @@
         if(pane.classList.contains('floating')) bringToFront(pane);
       });
     });
-  }
-
-  function minimizePane(pane, boot=false){
-    const key=pane.dataset.floatKey||'';
-    pane.classList.add('minimized');
-    const title = (qs('.card-header span, .card-header .text-sm',pane)?.innerText||'painel').split('\n')[0];
-    let item = qs(`.dock-item[data-key="${key}"]`, dock);
-    if(!item){
-      item = document.createElement('button');
-      item.className='dock-item'; item.dataset.key=key;
-      item.textContent=title||key||'painel';
-      item.title='Restaurar “'+item.textContent+'”';
-      item.addEventListener('click',()=> restorePane(key));
-      dock.appendChild(item);
-    }
-    ensureDockVisible();
-    if(!boot) savePaneState(pane,{minimized:true});
-  }
-  function restorePane(key){
-    const pane = qsa('.floatable').find(p=> (p.dataset.floatKey||'')===key); if(!pane) return;
-    pane.classList.remove('minimized'); savePaneState(pane,{minimized:false});
-    const item = qs(`.dock-item[data-key="${key}"]`, dock); item?.remove(); ensureDockVisible();
   }
 
   /* ===== Tema & Preferências ===== */
@@ -789,14 +771,24 @@
   }
 
   function ensurePrimarySelection(){
-    if(selectedRowIndex>=0 && (!selectedRowIndices || !selectedRowIndices.length)){
+    if(selectedRowIndex>=0 &&
+       (!selectedRowIndices || selectedRowIndices.length!==1 || selectedRowIndices[0]!==selectedRowIndex)){
       selectedRowIndices=[selectedRowIndex];
     }
   }
 
+  function updateAliasInputState(){
+    const multi = selectedRowIndices && selectedRowIndices.length>1;
+    aliasIn.disabled = multi;
+    aliasIn.classList.toggle('opacity-60', multi);
+    aliasIn.classList.toggle('cursor-not-allowed', multi);
+    aliasIn.title = multi ? 'Alias bloqueado em multiseleção (não propaga para outros itens).' : '';
+  }
+
   function renderAliasList(){
     countAliases.textContent=String(rows.length);
-    aliasList.innerHTML=''; ensurePrimarySelection();
+    aliasList.innerHTML='';
+    ensurePrimarySelection();
     let selectedDom=null;
     rows.forEach((r,idx)=>{
       if(!matchFilter(r)) return;
@@ -805,7 +797,7 @@
       const starred = starSet.has(keyFor(r));
 
       const div=document.createElement('div');
-      div.className='alias-row flex items-center gap-2 px-2 py-2 rounded-md hover:bg-slate-500/10 cursor-pointer'+(isSelected?' selected':'');
+      div.className='alias-row flex items-center gap-2 px-2 py-2 text-sm rounded-md hover:bg-slate-500/10 cursor-pointer'+(isSelected?' selected':'');
       const starBtn = `<button class="px-1 star" title="${starred?'Desmarcar ★':'Marcar ★'}">${starred?'★':'☆'}</button>`;
       const aliasHtml = `<div class="font-mono text-xs truncate" title="${r.alias||'(sem alias)'}">${r.alias||'(sem alias)'}</div>`;
       const wavHtml = hasFile
@@ -844,21 +836,8 @@
     });
     $('btnSave').disabled = rows.length===0;
     updateStarCounter();
+    updateAliasInputState();
     if(selectedDom) selectedDom.scrollIntoView({block:'nearest'});
-
-    // Controle de edição do campo de alias conforme seleção
-    const selCount = Array.isArray(selectedRowIndices) ? selectedRowIndices.length : 0;
-    if(selCount === 1){
-      aliasIn.disabled = false;
-      aliasIn.placeholder = 'alias';
-    } else if(selCount > 1){
-      aliasIn.disabled = true;
-      aliasIn.placeholder = 'Alias não editável em multiseleção';
-    } else {
-      aliasIn.disabled = true;
-      aliasIn.placeholder = 'alias';
-      aliasIn.value = '';
-    }
   }
 
   filterInput.addEventListener('input',renderAliasList);
@@ -1077,16 +1056,16 @@
     if(!currentBuffer) return;
     const ch=currentBuffer.getChannelData(0);
     const N=512, hop=256;
-    const rows=N/2;
+    const rowsCount=N/2;
     const frames = Math.max(1, Math.floor((ch.length - N)/hop)+1);
-    const data = new Float32Array(frames*rows);
+    const data = new Float32Array(frames*rowsCount);
     let minDB=+Infinity, maxDB=-Infinity;
     const w = HANN_512;
     const TWO_PI = 2*Math.PI;
 
     for(let frame=0; frame<frames; frame++){
       const start = frame*hop;
-      for(let bin=0; bin<rows; bin++){
+      for(let bin=0; bin<rowsCount; bin++){
         const freq = TWO_PI*bin/N;
         const cosTheta=Math.cos(freq), sinTheta=Math.sin(freq);
         let cos_n=1, sin_n=0;
@@ -1101,12 +1080,12 @@
         }
         const mag = Math.sqrt(re*re + im*im);
         const db = 20*Math.log10(mag+1e-8);
-        data[frame*rows + bin] = db;
+        data[frame*rowsCount + bin] = db;
         if(db<minDB) minDB=db;
         if(db>maxDB) maxDB=db;
       }
     }
-    specCache.set(fileIndex,{cols:frames,rows,data,minDB,maxDB,hop,N});
+    specCache.set(fileIndex,{cols:frames,rows:rowsCount,data,minDB,maxDB,hop,N});
     drawSpectrogram(fileIndex);
   }
 
@@ -1138,15 +1117,15 @@
     sctx.setTransform(ratio,0,0,ratio,0,0);
     sctx.clearRect(0,0,spec.width,spec.height);
 
-    const W=spec.width, H=spec.height, rows=cache.rows;
+    const W=spec.width, H=spec.height, rowsCount=cache.rows;
     const img=sctx.createImageData(W,H);
     const min=cache.minDB, max=cache.maxDB;
 
     for(let x=0;x<W;x++){
       const col = colStart + Math.floor((x/W)*viewCols);
-      const base = col*rows;
+      const base = col*rowsCount;
       for(let y=0;y<H;y++){
-        const bin = Math.floor((1 - y/H) * (rows-1));
+        const bin = Math.floor((1 - y/H) * (rowsCount-1));
         const v = cache.data[base + bin];
         const t = (v - min) / Math.max(1e-6, (max - min));
         const [r,g,b,a]=colorMap(t);
@@ -1258,35 +1237,55 @@
     if(!currentBuffer) return;
     const rect=wave.getBoundingClientRect();
     const x=clamp(e.clientX - rect.left,0,rect.width);
-    if(e.shiftKey){
+    const hasCtrl = e.ctrlKey || e.metaKey;
+    const hasShift = e.shiftKey;
+    const hasAlt = e.altKey;
+
+    // Sem modificadores → navegar aliases
+    if(!hasCtrl && !hasShift && !hasAlt){
+      e.preventDefault();
+      if(e.deltaY>0 && selectedRowIndex<rows.length-1) selectRow(selectedRowIndex+1);
+      else if(e.deltaY<0 && selectedRowIndex>0) selectRow(selectedRowIndex-1);
+      return;
+    }
+
+    // Shift+Roda → rolar janela (pan)
+    if(hasShift && !hasCtrl && !hasAlt){
       e.preventDefault();
       const totalMs=currentBuffer.duration*1000;
       const vw=getViewWindowMs(totalMs);
       const dir=e.deltaY>0?1:-1;
       const delta=vw*0.1*dir;
       viewStartMs=clamp(viewStartMs+delta, 0, Math.max(0,totalMs-vw));
-      drawAll(); return;
+      drawAll();
+      return;
     }
-    if(e.altKey){
+
+    // Alt+Roda → V-Zoom
+    if(hasAlt && !hasCtrl){
       e.preventDefault();
       vzoom=clamp((vzoom||1) * (e.deltaY>0?1/1.1:1.1), 0.25, 4);
       vzoomSlider.value=String(vzoom);
       vzoomLabel.textContent=vzoom.toFixed(2)+'×';
       prefs.vzoom=vzoom; savePrefs();
-      drawAll(); return;
+      drawAll();
+      return;
     }
-    if(e.ctrlKey){
+
+    // Ctrl+Roda → H-Zoom
+    if(hasCtrl && !hasAlt){
       e.preventDefault();
       const anchorMs=xToMs(x);
       const factor=e.deltaY>0?1/1.1:1.1;
       const oldZoom=zoom;
       zoom=clamp(oldZoom*factor,1,128);
       zoomSlider.value=String(zoom);
-      zoomLabel.textContent=`${zoom.toFixed(1)}×`;
+      zoomLabel.textContent=`${Math.round(zoom)}×`;
       const totalMs=currentBuffer.duration*1000;
       const vw=getViewWindowMs(totalMs);
-      viewStartMs = clamp(anchorMs - (x/wave.width)*vw, 0, Math.max(0,totalMs-vw));
+      viewStartMs=clamp(anchorMs - (x/wave.width)*vw, 0, Math.max(0,totalMs-vw));
       drawAll();
+      return;
     }
   }, {passive:false});
 
@@ -1357,6 +1356,13 @@
     overlapIn.value=fmt(p.overlap||0);
   }
 
+  // inputs numéricos: setinhas não passam para o atalho global
+  [offsetIn, consonantIn, cutoffIn, preutterIn, overlapIn].forEach(inp=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='ArrowUp' || e.key==='ArrowDown') e.stopPropagation();
+    });
+  });
+
   [aliasIn,offsetIn,consonantIn,cutoffIn,preutterIn,overlapIn].forEach(inp=>{
     const fieldId=inp.id;
     inp.addEventListener('input',()=>{
@@ -1372,12 +1378,17 @@
       p.overlap=Math.round(clamp(Number(overlapIn.value)||0,0,Math.max(0,totalMs-p.offset)));
       syncInputsFromRow(p);
       pushPatch(mainIndex,before,{...p},'Editar campos do alias');
+
+      // aplicação em lote (menos alias)
       if(selectedRowIndices && selectedRowIndices.length>1){
         selectedRowIndices.forEach(idx=>{
           if(idx===mainIndex) return;
           const t=rows[idx]; if(!t) return;
           const b={...t};
-          if(fieldId==='offset') t.offset=p.offset;
+          if(fieldId==='alias'){
+            // alias é protegido em multiseleção
+            return;
+          } else if(fieldId==='offset') t.offset=p.offset;
           else if(fieldId==='consonant') t.consonant=p.consonant;
           else if(fieldId==='cutoff') t.cutoff=p.cutoff;
           else if(fieldId==='preutter') t.preutter=p.preutter;
@@ -1394,59 +1405,120 @@
 
   function refreshOtoView(){
     const text=serializeOto(rows);
-    const lines=text?text.split('\n').length:0;
+    const lines=text.split('\n');
+    countLines.textContent=String(lines.length);
     otoView.value=text;
-    countLines.textContent=String(lines);
   }
   otoView.addEventListener('input',()=>{
-    rows=parseOto(otoView.value||'');
-    countAliases.textContent=String(rows.length);
-    renderAliasList();
+    const cur=getCurrentRow();
+    rows=parseOto(otoView.value);
+    if(cur){
+      let keepIdx=rows.findIndex(r=> r.filename===cur.filename && r.alias===cur.alias);
+      if(keepIdx<0){
+        keepIdx=rows.findIndex(r=> lower(basename(r.filename))===lower(basename(cur.filename)) && r.alias===cur.alias );
+      }
+      selectedRowIndex=keepIdx>=0?keepIdx:Math.min(selectedRowIndex,rows.length-1);
+    }
+    drawAll(); renderAliasList();
   });
 
-  /* ===== Redimensionamento responsivo ===== */
+  // mini interações
+  let draggingMini=false;
+  mini.addEventListener('mousedown',e=>{
+    if(!currentBuffer) return;
+    draggingMini=true;
+    centerViewAtMs(miniXToMs(e));
+  });
+  addEventListener('mouseup',()=> draggingMini=false);
+  mini.addEventListener('mousemove',e=>{
+    if(!draggingMini || !currentBuffer) return;
+    centerViewAtMs(miniXToMs(e));
+  });
+  function miniXToMs(e){
+    const r=mini.getBoundingClientRect();
+    const x=clamp(e.clientX-r.left,0,r.width);
+    const totalMs=currentBuffer.duration*1000;
+    return (x/r.width)*totalMs;
+  }
+  function centerViewAtMs(ms){
+    const totalMs=currentBuffer.duration*1000;
+    const vw=getViewWindowMs(totalMs);
+    viewStartMs=clamp(ms - vw/2,0,Math.max(0,totalMs-vw));
+    drawAll();
+  }
+
+  // sliders
+  zoomSlider.addEventListener('input',e=>{
+    if(!currentBuffer) return;
+    zoom=clamp(Number(e.target.value)||1,1,128);
+    zoomLabel.textContent=`${Math.round(zoom)}×`;
+    const totalMs=currentBuffer.duration*1000;
+    const vw=getViewWindowMs(totalMs);
+    viewStartMs=clamp(viewStartMs,0,Math.max(0,totalMs-vw));
+    drawAll();
+  });
+  vzoomSlider.addEventListener('input',e=>{
+    vzoom=clamp(Number(e.target.value)||1,0.25,4);
+    vzoomLabel.textContent=vzoom.toFixed(2)+'×';
+    prefs.vzoom=vzoom; savePrefs();
+    drawAll();
+  });
+
+  // espectrograma toggle
+  toggleSpec.addEventListener('change', async ()=>{
+    prefs.showSpec = toggleSpec.checked; savePrefs();
+    SPEC_WRAP.classList.toggle('hidden', !toggleSpec.checked);
+    if(toggleSpec.checked && selectedRowIndex>=0){
+      const fIdx=getFileIndexForFilename(rows[selectedRowIndex]?.filename||'');
+      if(fIdx>=0) await ensureSpectrogramFor(fIdx);
+    }
+    drawAll();
+  });
+
   function resizeCanvas(){
     const ratio=Math.max(1,Math.floor(devicePixelRatio||1));
     const wrap=wave.parentElement.getBoundingClientRect();
-    wave.width=Math.max(300,Math.floor(wrap.width*ratio));
-    wave.height=Math.floor(260*ratio);
-    ctxWave.setTransform(ratio,0,0,ratio,0,0);
-
-    const wrapMini=mini.parentElement.getBoundingClientRect();
-    mini.width=Math.max(300,Math.floor(wrapMini.width*ratio));
-    mini.height=Math.floor(60*ratio);
-    mctx.setTransform(ratio,0,0,ratio,0,0);
-
-    const wrapSpec=spec.parentElement.getBoundingClientRect();
-    spec.width=Math.max(300,Math.floor(wrapSpec.width*ratio));
-    spec.height=Math.floor(180*ratio);
-    sctx.setTransform(ratio,0,0,ratio,0,0);
+    wave.width=Math.max(600,Math.floor(wrap.width*ratio)); wave.height=Math.floor(260*ratio); ctxWave.setTransform(ratio,0,0,ratio,0,0);
+    mini.width=Math.max(300,Math.floor(wrap.width*ratio)); mini.height=Math.floor(60*ratio); mctx.setTransform(ratio,0,0,ratio,0,0);
   }
-
   const ro=new ResizeObserver(()=>{ resizeCanvas(); drawAll(); });
   ro.observe(qs('#pane-wave .card-body'));
   addEventListener('resize',()=>{ resizeCanvas(); drawAll(); });
 
   // atalhos de navegação/edição
   addEventListener('keydown',e=>{
+    const el = document.activeElement;
+    const isForm = el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA' || el.isContentEditable);
+
+    // Undo / Redo
+    if(e.ctrlKey && !e.shiftKey && (e.key==='z' || e.key==='Z')){
+      if(isForm) return; // deixa o Ctrl+Z nativo para inputs
+      e.preventDefault(); undoOnce(); return;
+    }
+    if(e.ctrlKey && !e.shiftKey && (e.key==='y' || e.key==='Y')){
+      if(isForm) return;
+      e.preventDefault(); redoOnce(); return;
+    }
+
     if(selectedRowIndex<0 && !rows.length) return;
-    const k=e.key, ku=(k||'').toUpperCase();
-    const code=e.code||'';
-    if(ku==='Y'){
+    const k=e.key, ku=k.toUpperCase();
+
+    if(ku==='Y' && !e.ctrlKey && !e.metaKey){
       $('btnPlay').click(); return;
     }
-    // Shift + 0 = duplicar linha
-    if(!e.ctrlKey && !e.altKey && e.shiftKey && code==='Digit0'){
-      e.preventDefault();
+
+    // Duplicar: Shift+0
+    if(k==='0' && e.shiftKey){
       const p=getCurrentRow(); if(!p) return;
       const copy={...p};
       rows.splice(selectedRowIndex+1,0,copy);
       pushAction({type:'insert',index:selectedRowIndex+1,row:{...copy}},'Duplicar linha (Shift+0)');
-      selectedRowIndex++; renderAliasList(); refreshOtoView(); selectRow(selectedRowIndex); return;
+      selectedRowIndex++; selectedRowIndices=[selectedRowIndex];
+      renderAliasList(); refreshOtoView(); selectRow(selectedRowIndex); return;
     }
-    // Shift + 9 = renomear alias
-    if(!e.ctrlKey && !e.altKey && e.shiftKey && code==='Digit9'){
-      e.preventDefault();
+
+    // Renomear: Shift+9
+    if(k==='9' && e.shiftKey){
       const p=getCurrentRow(); if(!p) return;
       const novo=prompt('Novo alias:', p.alias||'');
       if(novo!==null){
@@ -1457,33 +1529,40 @@
       }
       return;
     }
+
+    // Deletar: Shift+D
     if(e.shiftKey && ku==='D'){
       if(selectedRowIndex<0||!rows.length) return;
       const idx=selectedRowIndex;
       const removed=rows.splice(idx,1)[0];
       pushAction({type:'remove',index:idx,row:{...removed}},'Deletar alias');
       selectedRowIndex=Math.min(idx,rows.length-1);
+      selectedRowIndices=selectedRowIndex>=0?[selectedRowIndex]:[];
       renderAliasList(); refreshOtoView();
       if(rows.length) selectRow(selectedRowIndex); else { currentName.textContent='(nenhum arquivo)'; drawAll(); }
       return;
     }
+
     if(k==='ArrowDown'){
+      if(isForm) return;
       e.preventDefault();
-      if(selectedRowIndex<rows.length-1){ selectRow(selectedRowIndex+1); }
+      if(selectedRowIndex<rows.length-1){ selectedRowIndices=[selectedRowIndex+1]; selectRow(selectedRowIndex+1); }
       return;
     }
     if(k==='ArrowUp'){
+      if(isForm) return;
       e.preventDefault();
-      if(selectedRowIndex>0){ selectRow(selectedRowIndex-1); }
+      if(selectedRowIndex>0){ selectedRowIndices=[selectedRowIndex-1]; selectRow(selectedRowIndex-1); }
       return;
     }
+
     const m=markers.find(mm=> mm.key===ku);
     if(!m) return;
     const msAbs=(lastMouseX!=null)?xToMs(lastMouseX):cursorMs;
     setParamSmart(m.id, msAbs);
   });
 
-  // Especificamente para toggle ★ via S
+  // Toggle ★ com S
   addEventListener('keydown',e=>{
     if(selectedRowIndex<0) return;
     if(e.key==='S' || e.key==='s'){
@@ -1495,7 +1574,7 @@
   document.addEventListener('DOMContentLoaded', ()=>{
     loadPrefs(); loadStars(); applyTheme();
     $('btnTheme').addEventListener('click',()=>{
-      prefs.theme=(prefs.theme==='dark'?'light':'light'==='dark'); savePrefs(); applyTheme(); drawAll();
+      prefs.theme=(prefs.theme==='dark'?'light':'dark'); savePrefs(); applyTheme(); drawAll();
     });
     vzoom=prefs.vzoom||1; vzoomSlider.value=vzoom; vzoomLabel.textContent=vzoom.toFixed(2)+'×';
     toggleSpec.checked = !!prefs.showSpec;
@@ -1515,8 +1594,8 @@
     initFloatables();
     renderAliasList();
     updateEncodingBadge('utf-8', true);
+    updateAliasInputState();
   });
   </script>
 </body>
-
 </html>
