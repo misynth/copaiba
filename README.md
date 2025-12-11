@@ -93,7 +93,7 @@ Abra uma *issue* ou *pull request* com:
 
 ## 🧪 Créditos & Comunidade
 
-O Copaiba faz parte do ecossistema **MiSC Labs**, junto de ferramentas como:
+O **Copaiba Web** faz parte do ecossistema **MiSC Labs**, junto de ferramentas como:
 
 * **MeuPhonemizer**
 * **MiSC Nexus DAW**
