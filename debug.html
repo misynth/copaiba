@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Teste de Carregamento de .wav</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .debug-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .success {
+            color: #10b981;
+        }
+
+        .error {
+            color: #ef4444;
+        }
+
+        .info {
+            color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Debug - Teste de Carregamento de .wav</h1>
+
+    <div class="debug-panel">
+        <h2>Teste 1: FileList com webkitdirectory</h2>
+        <input id="folderInput" type="file" webkitdirectory multiple style="display: none">
+        <button onclick="document.getElementById('folderInput').click()">Selecionar Pasta</button>
+        <pre id="folderOutput">Aguardando seleção...</pre>
+    </div>
+
+    <div class="debug-panel">
+        <h2>Teste 2: FileList com múltiplos arquivos</h2>
+        <input id="multiInput" type="file" multiple accept="audio/wav" style="display: none">
+        <button onclick="document.getElementById('multiInput').click()">Selecionar Arquivos</button>
+        <pre id="multiOutput">Aguardando seleção...</pre>
+    </div>
+
+    <div class="debug-panel">
+        <h2>Teste 3: ES6 Modules</h2>
+        <button onclick="testModules()">Testar Importação de Módulos</button>
+        <pre id="moduleOutput">Aguardando teste...</pre>
+    </div>
+
+    <script type="module">
+        import { Toast } from './js/ui/toast.js';
+        import { OtoParser } from './js/oto-parser.js';
+
+        window.Toast = Toast;
+        window.OtoParser = OtoParser;
+        window.modulesLoaded = true;
+
+        console.log('✅ Módulos ES6 carregados com sucesso');
+    </script>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            element.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+        }
+
+        document.getElementById('folderInput').addEventListener('change', function (e) {
+            const output = document.getElementById('folderOutput');
+            output.textContent = '';
+
+            log('folderOutput', `Total de arquivos: ${e.target.files.length}`, 'info');
+
+            const files = [...e.target.files];
+            const wavs = files.filter(f => /\.wav$/i.test(f.name));
+
+            log('folderOutput', `Arquivos .wav encontrados: ${wavs.length}`, wavs.length > 0 ? 'success' : 'error');
+
+            wavs.slice(0, 10).forEach((f, i) => {
+                log('folderOutput', `  [${i + 1}] ${f.webkitRelativePath || f.name} (${(f.size / 1024).toFixed(2)} KB)`, 'info');
+            });
+
+            if (wavs.length > 10) {
+                log('folderOutput', `  ... e mais ${wavs.length - 10} arquivos`, 'info');
+            }
+        });
+
+        document.getElementById('multiInput').addEventListener('change', function (e) {
+            const output = document.getElementById('multiOutput');
+            output.textContent = '';
+
+            log('multiOutput', `Total de arquivos: ${e.target.files.length}`, 'info');
+
+            const files = [...e.target.files];
+            const wavs = files.filter(f => /\.wav$/i.test(f.name));
+
+            log('multiOutput', `Arquivos .wav encontrados: ${wavs.length}`, wavs.length > 0 ? 'success' : 'error');
+
+            wavs.forEach((f, i) => {
+                log('multiOutput', `  [${i + 1}] ${f.name} (${(f.size / 1024).toFixed(2)} KB)`, 'info');
+
+                // Tentar criar ObjectURL
+                try {
+                    const url = URL.createObjectURL(f);
+                    log('multiOutput', `    ✓ ObjectURL criado: ${url.substring(0, 50)}...`, 'success');
+                } catch (err) {
+                    log('multiOutput', `    ✗ Erro ao criar ObjectURL: ${err.message}`, 'error');
+                }
+            });
+        });
+
+        function testModules() {
+            const output = document.getElementById('moduleOutput');
+            output.textContent = '';
+
+            if (window.modulesLoaded) {
+                log('moduleOutput', '✅ ES6 Modules: OK', 'success');
+                log('moduleOutput', `✅ Toast disponível: ${typeof window.Toast}`, 'success');
+                log('moduleOutput', `✅ OtoParser disponível: ${typeof window.OtoParser}`, 'success');
+
+                // Testar OtoParser
+                try {
+                    const testContent = 'test.wav=a,100,50,30,200,150';
+                    const parsed = window.OtoParser.parse(testContent);
+                    log('moduleOutput', `✅ OtoParser.parse(): ${JSON.stringify(parsed[0])}`, 'success');
+                } catch (err) {
+                    log('moduleOutput', `✗ Erro no OtoParser: ${err.message}`, 'error');
+                }
+            } else {
+                log('moduleOutput', '✗ Módulos ES6 não carregados', 'error');
+                log('moduleOutput', 'Verifique o console do navegador para erros', 'error');
+            }
+        }
+
+        // Auto-teste ao carregar
+        window.addEventListener('load', () => {
+            console.log('🧪 Página de debug carregada');
+            console.log('🔍 Verificando suporte a features...');
+            console.log('  - webkitdirectory:', 'webkitdirectory' in document.createElement('input'));
+            console.log('  - FileReader:', typeof FileReader !== 'undefined');
+            console.log('  - URL.createObjectURL:', typeof URL.createObjectURL === 'function');
+            console.log('  - ES6 modules:', window.modulesLoaded || false);
+        });
+    </script>
+</body>
+
+</html>

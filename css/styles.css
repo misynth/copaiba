@@ -1,0 +1,401 @@
+/**
+ * Copaiba Web - Estilos Principais
+ */
+
+/* === Cards e Painéis === */
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .5rem .75rem;
+  border-bottom: 1px solid #e5e7eb;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  flex-wrap: wrap;
+  column-gap: .25rem;
+  row-gap: .25rem;
+  overflow: hidden;
+}
+
+.float-btn {
+  font-size: 12px;
+  line-height: 1;
+  border: 1px solid #e5e7eb;
+  background: transparent;
+  border-radius: 10px;
+  padding: .25rem .4rem;
+  cursor: pointer;
+}
+
+.float-btn:hover {
+  background: rgba(0, 0, 0, .04);
+}
+
+/* === Painéis Flutuantes === */
+.floatable {
+  resize: both;
+  overflow: auto;
+}
+
+.floatable.floating {
+  position: fixed;
+  inset: auto auto auto auto;
+  width: 560px;
+  max-width: 90vw;
+  z-index: 9999;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, .18);
+}
+
+.floating .card-body {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.floating .drag-handle {
+  cursor: move;
+}
+
+.dragging {
+  user-select: none;
+}
+
+/* === Canvas === */
+canvas {
+  display: block;
+  width: 100%;
+}
+
+#wave {
+  height: 260px;
+}
+
+#mini {
+  height: 60px;
+}
+
+#spec {
+  height: 180px;
+}
+
+/* === Tags e Labels === */
+.tag {
+  font-size: 10px;
+  padding: .1rem .4rem;
+  border-radius: .5rem;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.marker-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: #111827;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.handle {
+  position: absolute;
+  width: 8px;
+  height: 100%;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  background: transparent;
+}
+
+.marker-selected {
+  outline: 2px solid #111827;
+}
+
+/* === Forms === */
+textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* === Drag & Drop === */
+.drop-hint {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: .5rem .75rem;
+}
+
+.drop-active {
+  background: #f0f9ff;
+  border-color: #38bdf8;
+  color: #0ea5e9;
+}
+
+/* === Markers Overlay === */
+#labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#labels .handle,
+#labels .marker-label {
+  pointer-events: auto;
+}
+
+/* === Temas (CSS Variables) === */
+:root {
+  --bg: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --card: #ffffff;
+  --accent: #2563eb;
+  --grid: #e5e7eb;
+  --label-bg: #f9fafb;
+  --border: #e5e7eb;
+  --input-bg: #ffffff;
+}
+
+body.theme-dark {
+  --bg: #020617;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --card: #020617;
+  --accent: #38bdf8;
+  --grid: #1f2937;
+  --label-bg: #020617;
+  --border: #1f2937;
+  --input-bg: #020617;
+}
+
+/* === Aplicação do Tema === */
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.card {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .25);
+}
+
+.card-header {
+  background: rgba(15, 23, 42, 0.02);
+  border-bottom-color: var(--border);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.border-accent {
+  border-color: var(--accent);
+}
+
+#labels .marker-label {
+  background: var(--label-bg);
+  color: var(--text);
+  border: 1px solid var(--accent);
+}
+
+.handle {
+  background: linear-gradient(to bottom, transparent, var(--accent) 40%, var(--accent) 60%, transparent);
+  opacity: .25;
+}
+
+input,
+select,
+textarea {
+  background-color: var(--input-bg);
+  color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+button {
+  color: var(--text);
+}
+
+.tag {
+  border-color: var(--border);
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--muted);
+}
+
+/* === Dock (Painéis Minimizados) === */
+#dock {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  z-index: 10000;
+}
+
+#dock .dock-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: .35rem .55rem;
+  border-radius: .75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#dock .dock-item:hover {
+  outline: 1px solid var(--accent);
+}
+
+.minimized {
+  display: none !important;
+}
+
+/* === Lista de Aliases === */
+.alias-row {
+  transition: background-color .08s ease, box-shadow .08s ease, transform .08s ease;
+}
+
+.alias-row.selected {
+  background: rgba(37, 99, 235, 0.10);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.4);
+  transform: translateX(1px);
+}
+
+/* === Planilha === */
+#gridBody {
+  font-size: 12px;
+}
+
+.grid-cell {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid-cell input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+}
+
+.grid-cell.readonly input {
+  pointer-events: none;
+}
+
+.grid-cell.selected {
+  background: rgba(37, 99, 235, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.7);
+}
+
+.grid-header {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+/* === Toast Notifications === */
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 250px;
+  max-width: 400px;
+  opacity: 0;
+  transform: translateX(100px);
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  pointer-events: auto;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast-icon {
+  font-size: 18px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Toast Types */
+.toast-success {
+  background: #10b981;
+  color: white;
+}
+
+.toast-error {
+  background: #ef4444;
+  color: white;
+}
+
+.toast-warning {
+  background: #f59e0b;
+  color: white;
+}
+
+.toast-info {
+  background: #3b82f6;
+  color: white;
+}
+
+/* === Responsividade === */
+@media (max-width: 768px) {
+  .floatable.floating {
+    width: 95vw !important;
+    max-width: 95vw;
+  }
+
+  #toast-container {
+    right: 10px;
+    left: 10px;
+  }
+
+  .toast {
+    min-width: auto;
+  }
+}
